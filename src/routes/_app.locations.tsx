@@ -4,7 +4,12 @@ import { useStore, locReste, locVerse, type Location } from "@/lib/store";
 import { formatDA, formatDate, today as todayStr } from "@/lib/format";
 import { Modal, Drawer, Badge, EmptyState } from "@/components/ui-kit";
 import { Th, Td, FieldLabel } from "./_app.clients";
-import { Plus, Printer, Trash2, CalendarDays } from "lucide-react";
+import { Plus, Printer, Trash2, CalendarDays, Pencil, Check, X } from "lucide-react";
+
+/** Get the effective price for an article in a location (custom override or default) */
+function getArticlePrice(location: Location, articleId: string, defaultPrice: number): number {
+  return location.articlePrices?.[articleId] ?? defaultPrice;
+}
 
 export const Route = createFileRoute("/_app/locations")({
   component: LocationsPage,
@@ -158,6 +163,7 @@ function NewLocationModal({ open, onClose, prefillClientId }: { open: boolean; o
   const [newClient, setNewClient] = useState({ name: "", phone: "" });
 
   const [selArticles, setSelArticles] = useState<string[]>([]);
+  const [customPrices, setCustomPrices] = useState<Record<string, number>>({});
   const [pickupDate, setPickupDate] = useState(todayStr());
   const [returnDate, setReturnDate] = useState(todayStr());
   const [occasion, setOccasion] = useState<"Mariage" | "Fiançailles" | "Cérémonie" | "Anniversaire" | "Autre">("Mariage");
@@ -166,7 +172,7 @@ function NewLocationModal({ open, onClose, prefillClientId }: { open: boolean; o
   const [initialPayment, setInitialPayment] = useState(0);
   const [err, setErr] = useState("");
 
-  const total = articles.filter((a) => selArticles.includes(a.id)).reduce((s, a) => s + a.price, 0);
+  const total = articles.filter((a) => selArticles.includes(a.id)).reduce((s, a) => s + (customPrices[a.id] ?? a.price), 0);
   const cautionAuto = articles.filter((a) => selArticles.includes(a.id)).reduce((s, a) => s + a.caution, 0);
   const finalCaution = caution || cautionAuto;
   const reste = Math.max(0, total - initialPayment);
@@ -181,8 +187,11 @@ function NewLocationModal({ open, onClose, prefillClientId }: { open: boolean; o
     if (selArticles.length === 0) { setErr("Sélectionnez au moins un article"); return; }
     if (returnDate < pickupDate) { setErr("Date de retour avant la date de retrait"); return; }
     if (initialPayment > total) { setErr("Le versement dépasse le total"); return; }
+    // Build articlePrices only if any custom prices were set
+    const hasCustomPrices = selArticles.some((id) => customPrices[id] !== undefined);
+    const articlePrices = hasCustomPrices ? Object.fromEntries(selArticles.map((id) => [id, customPrices[id] ?? articles.find((a) => a.id === id)!.price])) : undefined;
     addLocation({
-      clientId: cId, articleIds: selArticles, pickupDate, returnDate, occasion,
+      clientId: cId, articleIds: selArticles, articlePrices, pickupDate, returnDate, occasion,
       total, caution: finalCaution, notes, initialPayment,
     });
     onClose();
@@ -226,7 +235,17 @@ function NewLocationModal({ open, onClose, prefillClientId }: { open: boolean; o
               return (
                 <button
                   key={a.id}
-                  onClick={() => setSelArticles(sel ? selArticles.filter((x) => x !== a.id) : [...selArticles, a.id])}
+                  onClick={() => {
+                    if (sel) {
+                      setSelArticles(selArticles.filter((x) => x !== a.id));
+                      // Remove custom price when deselecting
+                      const next = { ...customPrices };
+                      delete next[a.id];
+                      setCustomPrices(next);
+                    } else {
+                      setSelArticles([...selArticles, a.id]);
+                    }
+                  }}
                   className="text-left p-3 rounded-lg border transition-colors"
                   style={{
                     borderColor: sel ? "#74367E" : "#E5E5E5",
@@ -239,6 +258,29 @@ function NewLocationModal({ open, onClose, prefillClientId }: { open: boolean; o
               );
             })}
           </div>
+          {selArticles.length > 0 && (
+            <div className="mt-3 space-y-2">
+              <div className="text-xs font-medium" style={{ color: "rgba(26,26,26,0.6)" }}>Prix par article (modifiable)</div>
+              {selArticles.map((aid) => {
+                const a = articles.find((x) => x.id === aid);
+                if (!a) return null;
+                return (
+                  <div key={aid} className="flex items-center gap-2 text-sm">
+                    <span className="flex-1 truncate">{a.name}</span>
+                    <input
+                      type="number"
+                      className="input-field w-28 text-right"
+                      value={customPrices[aid] ?? ""}
+                      placeholder={a.price.toString()}
+                      onChange={(e) => setCustomPrices({ ...customPrices, [aid]: +e.target.value || a.price })}
+                      aria-label={`Prix ${a.name}`}
+                    />
+                    <span className="text-xs" style={{ color: "rgba(26,26,26,0.45)" }}>DA</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </Section>
 
         {/* Step 3 */}
@@ -292,6 +334,80 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+// ─── Editable article prices section ────────────────────
+function LocationArticlesSection({ location, articles }: { location: Location; articles: { id: string; name: string; price: number }[] }) {
+  const updateArticlePrices = useStore((s) => s.updateLocationArticlePrices);
+  const isAdmin = useStore((s) => s.auth.role === "admin");
+
+  const [editing, setEditing] = useState(false);
+  const [draftPrices, setDraftPrices] = useState<Record<string, number>>({});
+
+  const startEdit = () => {
+    const init: Record<string, number> = {};
+    articles.forEach((a) => {
+      init[a.id] = getArticlePrice(location, a.id, a.price);
+    });
+    setDraftPrices(init);
+    setEditing(true);
+  };
+
+  const save = () => {
+    updateArticlePrices(location.id, draftPrices);
+    setEditing(false);
+  };
+
+  const cancel = () => setEditing(false);
+
+  return (
+    <Section title="Articles">
+      <ul className="space-y-2">
+        {articles.map((a) => {
+          const price = editing ? draftPrices[a.id] : getArticlePrice(location, a.id, a.price);
+          const isCustom = (location.articlePrices?.[a.id] ?? undefined) !== undefined;
+          return (
+            <li key={a.id} className="flex items-center justify-between text-sm py-2 border-b" style={{ borderColor: "#E5E5E5" }}>
+              <span className="flex items-center gap-2">
+                {a.name}
+                {isCustom && !editing && <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: "rgba(116,54,126,0.1)", color: "#74367E" }}>personnalisé</span>}
+              </span>
+              {editing ? (
+                <input
+                  type="number"
+                  className="input-field w-28 text-right"
+                  value={draftPrices[a.id] ?? ""}
+                  placeholder={a.price.toString()}
+                  onChange={(e) => setDraftPrices({ ...draftPrices, [a.id]: +e.target.value || a.price })}
+                  aria-label={`Prix ${a.name}`}
+                />
+              ) : (
+                <span style={{ color: "#74367E" }}>{formatDA(price)}</span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {isAdmin && (
+        <div className="flex items-center justify-end gap-2 mt-3">
+          {editing ? (
+            <>
+              <button onClick={cancel} className="btn-ghost flex items-center gap-1" style={{ padding: "4px 12px", fontSize: 12 }}>
+                <X className="w-3.5 h-3.5" /> Annuler
+              </button>
+              <button onClick={save} className="btn-primary flex items-center gap-1" style={{ padding: "4px 12px", fontSize: 12 }}>
+                <Check className="w-3.5 h-3.5" /> Enregistrer
+              </button>
+            </>
+          ) : (
+            <button onClick={startEdit} className="btn-ghost flex items-center gap-1" style={{ padding: "4px 12px", fontSize: 12 }}>
+              <Pencil className="w-3.5 h-3.5" /> Modifier les prix
+            </button>
+          )}
+        </div>
+      )}
+    </Section>
+  );
+}
+
 // ─── Location detail drawer ──────────────────────────────
 function LocationDetail({ location, onClose }: { location: Location; onClose: () => void }) {
   const clients = useStore((s) => s.clients);
@@ -331,16 +447,7 @@ function LocationDetail({ location, onClose }: { location: Location; onClose: ()
           </button>
         </div>
 
-        <Section title="Articles">
-          <ul className="space-y-2">
-            {arts.map((a) => (
-              <li key={a.id} className="flex items-center justify-between text-sm py-2 border-b" style={{ borderColor: "#E5E5E5" }}>
-                <span>{a.name}</span>
-                <span style={{ color: "#74367E" }}>{formatDA(a.price)}</span>
-              </li>
-            ))}
-          </ul>
-        </Section>
+        <LocationArticlesSection location={location} articles={arts} />
 
         <Section title="Dates & occasion">
           <div className="grid grid-cols-2 gap-3 text-sm">
@@ -459,7 +566,7 @@ function PrintContract({ location }: { location: Location }) {
           {arts.map((a) => (
             <tr key={a.id} style={{ borderBottom: "1px solid #E5E5E5" }}>
               <td style={{ padding: 8 }}>{a.name}</td>
-              <td style={{ padding: 8, textAlign: "right" }}>{formatDA(a.price)}</td>
+              <td style={{ padding: 8, textAlign: "right" }}>{formatDA(getArticlePrice(location, a.id, a.price))}</td>
             </tr>
           ))}
         </tbody>

@@ -39,6 +39,7 @@ export interface Location {
   id: string;
   clientId: string;
   articleIds: string[];
+  articlePrices?: Record<string, number>; // per-article custom price override
   pickupDate: string;
   returnDate: string;
   actualReturnDate?: string;
@@ -97,6 +98,7 @@ interface StoreState {
   markReturned: (locId: string, returnDate: string) => void;
   markCautionReturned: (locId: string) => void;
   updateLocationNotes: (locId: string, notes: string) => void;
+  updateLocationArticlePrices: (locId: string, articlePrices: Record<string, number>) => void;
 
   addEmployee: (name: string, pin: string) => void;
   updateEmployeePin: (id: string, pin: string) => void;
@@ -225,6 +227,7 @@ export const useStore = create<StoreState>((set, get) => ({
       id: uid(),
       clientId: l.clientId,
       articleIds: l.articleIds,
+      articlePrices: l.articlePrices,
       pickupDate: l.pickupDate,
       returnDate: l.returnDate,
       occasion: l.occasion,
@@ -259,6 +262,17 @@ export const useStore = create<StoreState>((set, get) => ({
   })),
   updateLocationNotes: (locId, notes) => set((s) => ({
     locations: s.locations.map((l) => (l.id === locId ? { ...l, notes } : l)),
+  })),
+  updateLocationArticlePrices: (locId, articlePrices) => set((s) => ({
+    locations: s.locations.map((l) => {
+      if (l.id !== locId) return l;
+      const articles = get().articles;
+      const newTotal = l.articleIds.reduce((sum, aid) => {
+        const customPrice = articlePrices[aid];
+        return sum + (customPrice ?? articles.find((a) => a.id === aid)?.price ?? 0);
+      }, 0);
+      return { ...l, articlePrices, total: newTotal };
+    }),
   })),
 
   addEmployee: (name, pin) => set((s) => ({ employees: [...s.employees, { id: uid(), name, pin, active: true }] })),
