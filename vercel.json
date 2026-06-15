@@ -1,15 +1,16 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "vite build",
+  "buildCommand": "bun run build",
+  "installCommand": "bun install",
   "outputDirectory": "dist/client",
   "framework": null,
   "functions": {
     "api/index.ts": {
-      "runtime": "@vercel/node",
+      "runtime": "@vercel/node@2",
       "maxDuration": 30
     }
   },
   "rewrites": [
-    { "source": "/(.*)", "destination": "/api" }
+    { "source": "/((?!assets/).*)", "destination": "/api" }
   ]
 }
