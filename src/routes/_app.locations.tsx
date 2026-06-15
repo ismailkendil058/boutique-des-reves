@@ -1,0 +1,490 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { useStore, locReste, locVerse, type Location } from "@/lib/store";
+import { formatDA, formatDate, today as todayStr } from "@/lib/format";
+import { Modal, Drawer, Badge, EmptyState } from "@/components/ui-kit";
+import { Th, Td, FieldLabel } from "./_app.clients";
+import { Plus, Printer, Trash2, CalendarDays } from "lucide-react";
+
+export const Route = createFileRoute("/_app/locations")({
+  component: LocationsPage,
+});
+
+type Tab = "En cours" | "À venir" | "Rendues" | "En retard";
+const TABS: Tab[] = ["En cours", "À venir", "Rendues", "En retard"];
+
+function LocationsPage() {
+  const locations = useStore((s) => s.locations);
+  const clients = useStore((s) => s.clients);
+  const articles = useStore((s) => s.articles);
+  const pendingNew = useStore((s) => s.pendingNewLocationClientId);
+  const pendingOpen = useStore((s) => s.pendingOpenLocationId);
+  const setPendingNew = useStore((s) => s.setPendingNewLocation);
+  const setPendingOpen = useStore((s) => s.setPendingOpenLocation);
+
+  const [tab, setTab] = useState<Tab>("En cours");
+  const [newOpen, setNewOpen] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [prefillClient, setPrefillClient] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (pendingNew) {
+      setPrefillClient(pendingNew);
+      setNewOpen(true);
+      setPendingNew(null);
+    }
+  }, [pendingNew, setPendingNew]);
+
+  useEffect(() => {
+    if (pendingOpen) {
+      setOpenId(pendingOpen);
+      setPendingOpen(null);
+    }
+  }, [pendingOpen, setPendingOpen]);
+
+  const filtered = locations.filter((l) => {
+    if (tab === "Rendues") return l.status === "Rendue";
+    return l.status === tab;
+  });
+
+  const openLoc = locations.find((l) => l.id === openId) ?? null;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h1 className="page-title">Locations</h1>
+        <button onClick={() => { setPrefillClient(null); setNewOpen(true); }} className="btn-primary">
+          <Plus className="w-4 h-4" /> Nouvelle location
+        </button>
+      </div>
+
+      <div className="flex gap-1 border-b overflow-x-auto" style={{ borderColor: "#E5E5E5" }}>
+        {TABS.map((t) => {
+          const active = t === tab;
+          return (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className="px-4 py-2.5 text-sm whitespace-nowrap"
+              style={{
+                color: active ? "#74367E" : "rgba(26,26,26,0.6)",
+                fontWeight: active ? 600 : 400,
+                borderBottom: active ? "2px solid #74367E" : "2px solid transparent",
+                marginBottom: "-1px",
+              }}
+            >
+              {t}
+            </button>
+          );
+        })}
+      </div>
+
+      {filtered.length === 0 ? (
+        <EmptyState icon={<CalendarDays className="w-12 h-12" />} title={`Aucune location ${tab.toLowerCase()}`} />
+      ) : (
+        <div className="card-surface" style={{ padding: 0, overflow: "hidden" }}>
+          <table className="hidden md:table w-full text-sm">
+            <thead>
+              <tr style={{ borderBottom: "2px solid #E5E5E5", background: "#FAFAFA" }}>
+                <Th>Client</Th><Th>Article(s)</Th><Th>Retrait</Th><Th>Retour prévu</Th><Th>Total</Th><Th>Reste</Th><Th>Statut</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((l) => {
+                const client = clients.find((c) => c.id === l.clientId);
+                const arts = articles.filter((a) => l.articleIds.includes(a.id)).map((a) => a.name).join(", ");
+                const reste = locReste(l);
+                const overdue = l.status === "En retard";
+                return (
+                  <tr
+                    key={l.id}
+                    onClick={() => setOpenId(l.id)}
+                    className="cursor-pointer hover:bg-[rgba(116,54,126,0.04)]"
+                    style={{
+                      borderBottom: "1px solid #E5E5E5",
+                      borderLeft: overdue ? "3px solid #C0392B" : "3px solid transparent",
+                    }}
+                  >
+                    <Td>{client?.name}</Td>
+                    <Td>{arts}</Td>
+                    <Td>{formatDate(l.pickupDate)}</Td>
+                    <Td>{formatDate(l.returnDate)}</Td>
+                    <Td>{formatDA(l.total)}</Td>
+                    <Td style={{ color: reste > 0 ? "#74367E" : "rgba(26,26,26,0.45)", fontWeight: reste > 0 ? 500 : 400 }}>{formatDA(reste)}</Td>
+                    <Td><Badge status={l.status} /></Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          <div className="md:hidden divide-y" style={{ borderColor: "#E5E5E5" }}>
+            {filtered.map((l) => {
+              const client = clients.find((c) => c.id === l.clientId);
+              const reste = locReste(l);
+              return (
+                <div key={l.id} onClick={() => setOpenId(l.id)} className="p-4 flex items-start justify-between gap-3"
+                  style={{ borderLeft: l.status === "En retard" ? "3px solid #C0392B" : "3px solid transparent" }}>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium">{client?.name}</div>
+                    <div className="text-xs mt-0.5" style={{ color: "rgba(26,26,26,0.55)" }}>
+                      Retour {formatDate(l.returnDate)} · {formatDA(l.total)}
+                    </div>
+                    {reste > 0 && <div className="text-sm mt-1" style={{ color: "#74367E", fontWeight: 500 }}>Reste : {formatDA(reste)}</div>}
+                  </div>
+                  <Badge status={l.status} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {newOpen && <NewLocationModal open={newOpen} onClose={() => setNewOpen(false)} prefillClientId={prefillClient} />}
+      {openLoc && <LocationDetail location={openLoc} onClose={() => setOpenId(null)} />}
+    </div>
+  );
+}
+
+// ─── New location modal ──────────────────────────────────
+function NewLocationModal({ open, onClose, prefillClientId }: { open: boolean; onClose: () => void; prefillClientId: string | null }) {
+  const clients = useStore((s) => s.clients);
+  const articles = useStore((s) => s.articles);
+  const addClient = useStore((s) => s.addClient);
+  const addLocation = useStore((s) => s.addLocation);
+
+  const [clientId, setClientId] = useState(prefillClientId ?? "");
+  const [creatingClient, setCreatingClient] = useState(false);
+  const [newClient, setNewClient] = useState({ name: "", phone: "" });
+
+  const [selArticles, setSelArticles] = useState<string[]>([]);
+  const [pickupDate, setPickupDate] = useState(todayStr());
+  const [returnDate, setReturnDate] = useState(todayStr());
+  const [occasion, setOccasion] = useState<"Mariage" | "Fiançailles" | "Cérémonie" | "Anniversaire" | "Autre">("Mariage");
+  const [notes, setNotes] = useState("");
+  const [caution, setCaution] = useState(0);
+  const [initialPayment, setInitialPayment] = useState(0);
+  const [err, setErr] = useState("");
+
+  const total = articles.filter((a) => selArticles.includes(a.id)).reduce((s, a) => s + a.price, 0);
+  const cautionAuto = articles.filter((a) => selArticles.includes(a.id)).reduce((s, a) => s + a.caution, 0);
+  const finalCaution = caution || cautionAuto;
+  const reste = Math.max(0, total - initialPayment);
+
+  const submit = () => {
+    let cId = clientId;
+    if (creatingClient) {
+      if (!newClient.name.trim() || !newClient.phone.trim()) { setErr("Renseignez le client"); return; }
+      cId = addClient(newClient).id;
+    }
+    if (!cId) { setErr("Sélectionnez un client"); return; }
+    if (selArticles.length === 0) { setErr("Sélectionnez au moins un article"); return; }
+    if (returnDate < pickupDate) { setErr("Date de retour avant la date de retrait"); return; }
+    if (initialPayment > total) { setErr("Le versement dépasse le total"); return; }
+    addLocation({
+      clientId: cId, articleIds: selArticles, pickupDate, returnDate, occasion,
+      total, caution: finalCaution, notes, initialPayment,
+    });
+    onClose();
+  };
+
+  const availableArts = articles.filter((a) => a.status === "Disponible" || selArticles.includes(a.id));
+
+  return (
+    <Modal
+      open={open} onClose={onClose} title="Nouvelle location" size="lg"
+      footer={<>
+        <button onClick={onClose} className="btn-danger">Annuler</button>
+        <button onClick={submit} className="btn-primary">Créer la location</button>
+      </>}
+    >
+      <div className="space-y-6">
+        {/* Step 1 */}
+        <Section title="1. Client">
+          {!creatingClient ? (
+            <div className="flex gap-2">
+              <select className="input-field" value={clientId} onChange={(e) => setClientId(e.target.value)}>
+                <option value="">— Choisir un client —</option>
+                {clients.map((c) => <option key={c.id} value={c.id}>{c.name} · {c.phone}</option>)}
+              </select>
+              <button onClick={() => setCreatingClient(true)} className="btn-ghost whitespace-nowrap">+ Créer</button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <input className="input-field" placeholder="Nom" value={newClient.name} onChange={(e) => setNewClient({ ...newClient, name: e.target.value })} />
+              <input className="input-field" placeholder="Téléphone" value={newClient.phone} onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })} />
+              <button onClick={() => setCreatingClient(false)} className="text-xs col-span-2 text-left" style={{ color: "#74367E" }}>← Choisir un client existant</button>
+            </div>
+          )}
+        </Section>
+
+        {/* Step 2 */}
+        <Section title="2. Articles">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-1">
+            {availableArts.map((a) => {
+              const sel = selArticles.includes(a.id);
+              return (
+                <button
+                  key={a.id}
+                  onClick={() => setSelArticles(sel ? selArticles.filter((x) => x !== a.id) : [...selArticles, a.id])}
+                  className="text-left p-3 rounded-lg border transition-colors"
+                  style={{
+                    borderColor: sel ? "#74367E" : "#E5E5E5",
+                    background: sel ? "rgba(116,54,126,0.06)" : "white",
+                  }}
+                >
+                  <div className="text-sm font-medium truncate">{a.name}</div>
+                  <div className="text-xs" style={{ color: "#74367E" }}>{formatDA(a.price)}</div>
+                </button>
+              );
+            })}
+          </div>
+        </Section>
+
+        {/* Step 3 */}
+        <Section title="3. Détails">
+          <div className="grid grid-cols-2 gap-3">
+            <FieldLabel label="Date de retrait"><input type="date" className="input-field" value={pickupDate} onChange={(e) => setPickupDate(e.target.value)} /></FieldLabel>
+            <FieldLabel label="Date de retour"><input type="date" className="input-field" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} /></FieldLabel>
+            <FieldLabel label="Occasion">
+              <select className="input-field" value={occasion} onChange={(e) => setOccasion(e.target.value as any)}>
+                <option>Mariage</option><option>Fiançailles</option><option>Cérémonie</option><option>Anniversaire</option><option>Autre</option>
+              </select>
+            </FieldLabel>
+            <FieldLabel label="Notes"><input className="input-field" value={notes} onChange={(e) => setNotes(e.target.value)} /></FieldLabel>
+          </div>
+        </Section>
+
+        {/* Step 4 */}
+        <Section title="4. Paiement">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span style={{ color: "rgba(26,26,26,0.6)" }}>Total calculé</span>
+              <span style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 22, color: "#74367E" }}>{formatDA(total)}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <FieldLabel label={`Caution (auto : ${formatDA(cautionAuto)})`}>
+                <input type="number" className="input-field" value={caution || ""} placeholder={cautionAuto.toString()} onChange={(e) => setCaution(+e.target.value)} />
+              </FieldLabel>
+              <FieldLabel label="Versement initial">
+                <input type="number" className="input-field" value={initialPayment || ""} onChange={(e) => setInitialPayment(+e.target.value)} />
+              </FieldLabel>
+            </div>
+            <div className="flex items-center justify-between text-sm pt-2 border-t" style={{ borderColor: "#E5E5E5" }}>
+              <span style={{ color: "rgba(26,26,26,0.6)" }}>Reste à payer</span>
+              <span style={{ color: "#74367E", fontWeight: 600 }}>{formatDA(reste)}</span>
+            </div>
+          </div>
+        </Section>
+
+        {err && <div className="text-sm" style={{ color: "#C0392B" }}>{err}</div>}
+      </div>
+    </Modal>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="section-label mb-3">{title}</div>
+      {children}
+    </div>
+  );
+}
+
+// ─── Location detail drawer ──────────────────────────────
+function LocationDetail({ location, onClose }: { location: Location; onClose: () => void }) {
+  const clients = useStore((s) => s.clients);
+  const articles = useStore((s) => s.articles);
+  const addVersement = useStore((s) => s.addVersement);
+  const deleteVersement = useStore((s) => s.deleteVersement);
+  const markReturned = useStore((s) => s.markReturned);
+  const markCautionReturned = useStore((s) => s.markCautionReturned);
+  const isAdmin = useStore((s) => s.auth.role === "admin");
+
+  const [payOpen, setPayOpen] = useState(false);
+  const [payAmount, setPayAmount] = useState(0);
+  const [payDate, setPayDate] = useState(todayStr());
+
+  const client = clients.find((c) => c.id === location.clientId);
+  const arts = articles.filter((a) => location.articleIds.includes(a.id));
+  const reste = locReste(location);
+
+  const submitPay = () => {
+    if (payAmount <= 0 || payAmount > reste) return;
+    addVersement(location.id, { date: payDate, amount: payAmount, type: payAmount === reste ? "Solde" : "Versement" });
+    setPayOpen(false);
+    setPayAmount(0);
+  };
+
+  return (
+    <Drawer
+      open={true} onClose={onClose}
+      title={`Location · ${client?.name ?? ""}`}
+      footer={<button onClick={onClose} className="btn-ghost">Fermer</button>}
+    >
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <Badge status={location.status} />
+          <button onClick={() => window.print()} className="text-sm flex items-center gap-1.5" style={{ color: "#74367E" }}>
+            <Printer className="w-4 h-4" /> Imprimer le contrat
+          </button>
+        </div>
+
+        <Section title="Articles">
+          <ul className="space-y-2">
+            {arts.map((a) => (
+              <li key={a.id} className="flex items-center justify-between text-sm py-2 border-b" style={{ borderColor: "#E5E5E5" }}>
+                <span>{a.name}</span>
+                <span style={{ color: "#74367E" }}>{formatDA(a.price)}</span>
+              </li>
+            ))}
+          </ul>
+        </Section>
+
+        <Section title="Dates & occasion">
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div><div className="text-xs" style={{ color: "rgba(26,26,26,0.55)" }}>Retrait</div><div>{formatDate(location.pickupDate)}</div></div>
+            <div><div className="text-xs" style={{ color: "rgba(26,26,26,0.55)" }}>Retour prévu</div><div>{formatDate(location.returnDate)}</div></div>
+            <div><div className="text-xs" style={{ color: "rgba(26,26,26,0.55)" }}>Occasion</div><div>{location.occasion}</div></div>
+            {location.actualReturnDate && <div><div className="text-xs" style={{ color: "rgba(26,26,26,0.55)" }}>Retour réel</div><div>{formatDate(location.actualReturnDate)}</div></div>}
+          </div>
+        </Section>
+
+        <div className="card-surface" style={{ padding: 20 }}>
+          <div className="section-label mb-3">Paiements</div>
+          <div className="flex items-center justify-between text-sm mb-3">
+            <span>Total</span>
+            <span style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 20 }}>{formatDA(location.total)}</span>
+          </div>
+          <div className="space-y-1 mb-3">
+            {location.versements.length === 0 && <div className="text-xs" style={{ color: "rgba(26,26,26,0.55)" }}>Aucun versement</div>}
+            {location.versements.map((v) => (
+              <div key={v.id} className="flex items-center justify-between text-sm py-1.5">
+                <span style={{ color: "rgba(26,26,26,0.7)" }}>{formatDate(v.date)} · {v.type}</span>
+                <span className="flex items-center gap-2">
+                  {formatDA(v.amount)}
+                  {isAdmin && (
+                    <button onClick={() => deleteVersement(location.id, v.id)} aria-label="Supprimer" style={{ color: "rgba(26,26,26,0.4)" }}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center justify-between text-sm pt-3 border-t" style={{ borderColor: "#E5E5E5" }}>
+            <span>Reste à payer</span>
+            <span style={{ color: "#74367E", fontWeight: 600 }}>{formatDA(reste)}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm pt-2">
+            <span style={{ color: "rgba(26,26,26,0.6)" }}>Caution : {formatDA(location.caution)}</span>
+            {location.status === "Rendue" && !location.cautionReturned && (
+              <button onClick={() => markCautionReturned(location.id)} className="btn-ghost" style={{ padding: "4px 12px", fontSize: 12 }}>Caution rendue</button>
+            )}
+            {location.cautionReturned && <Badge status="Soldé" />}
+          </div>
+          <button onClick={() => setPayOpen(true)} className="btn-primary w-full justify-center mt-4" disabled={reste === 0}>
+            <Plus className="w-4 h-4" /> Enregistrer un versement
+          </button>
+        </div>
+
+        {location.status !== "Rendue" && (
+          <button
+            onClick={() => { const d = prompt("Date de retour ?", todayStr()); if (d) markReturned(location.id, d); }}
+            className="btn-ghost w-full justify-center"
+          >
+            Marquer comme rendu
+          </button>
+        )}
+      </div>
+
+      <Modal
+        open={payOpen} onClose={() => setPayOpen(false)} title="Nouveau versement" size="sm"
+        footer={<>
+          <button onClick={() => setPayOpen(false)} className="btn-danger">Annuler</button>
+          <button onClick={submitPay} className="btn-primary">Enregistrer</button>
+        </>}
+      >
+        <div className="space-y-4">
+          <FieldLabel label={`Montant (max ${formatDA(reste)})`}>
+            <input type="number" className="input-field" value={payAmount || ""} onChange={(e) => setPayAmount(+e.target.value)} max={reste} />
+          </FieldLabel>
+          <FieldLabel label="Date">
+            <input type="date" className="input-field" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
+          </FieldLabel>
+        </div>
+      </Modal>
+
+      {/* Print contract — visible only when printing */}
+      <div className="print-area" style={{ display: "none" }}>
+        <PrintContract location={location} />
+      </div>
+      <style>{`@media print { .print-area { display: block !important; } }`}</style>
+    </Drawer>
+  );
+}
+
+function PrintContract({ location }: { location: Location }) {
+  const clients = useStore((s) => s.clients);
+  const articles = useStore((s) => s.articles);
+  const client = clients.find((c) => c.id === location.clientId);
+  const arts = articles.filter((a) => location.articleIds.includes(a.id));
+  const verse = locVerse(location);
+  const reste = locReste(location);
+
+  return (
+    <div style={{ fontFamily: "DM Sans, sans-serif", color: "#1A1A1A", fontSize: 14 }}>
+      <div style={{ textAlign: "center", paddingBottom: 16, borderBottom: "2px solid #74367E" }}>
+        <div style={{ fontFamily: "Cormorant Garamond, serif", fontStyle: "italic", fontSize: 32, color: "#74367E", letterSpacing: "0.15em" }}>
+          Boutique des Rêves
+        </div>
+        <div style={{ fontSize: 12, marginTop: 4, color: "rgba(26,26,26,0.6)" }}>Contrat de location</div>
+      </div>
+
+      <div style={{ marginTop: 24 }}>
+        <strong>Client :</strong> {client?.name}<br />
+        <strong>Téléphone :</strong> {client?.phone}<br />
+        {client?.address && <><strong>Adresse :</strong> {client.address}<br /></>}
+      </div>
+
+      <table style={{ width: "100%", marginTop: 24, borderCollapse: "collapse" }}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid #E5E5E5" }}>
+            <th style={{ textAlign: "left", padding: 8 }}>Article</th>
+            <th style={{ textAlign: "right", padding: 8 }}>Prix</th>
+          </tr>
+        </thead>
+        <tbody>
+          {arts.map((a) => (
+            <tr key={a.id} style={{ borderBottom: "1px solid #E5E5E5" }}>
+              <td style={{ padding: 8 }}>{a.name}</td>
+              <td style={{ padding: 8, textAlign: "right" }}>{formatDA(a.price)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <div style={{ marginTop: 24 }}>
+        <div>Retrait : {formatDate(location.pickupDate)}</div>
+        <div>Retour prévu : {formatDate(location.returnDate)}</div>
+        <div>Occasion : {location.occasion}</div>
+      </div>
+
+      <div style={{ marginTop: 24, padding: 16, border: "1px solid #E5E5E5", borderRadius: 8 }}>
+        <div>Total : <strong>{formatDA(location.total)}</strong></div>
+        <div>Versé : {formatDA(verse)}</div>
+        <div>Reste : <strong style={{ color: "#74367E" }}>{formatDA(reste)}</strong></div>
+        <div>Caution : {formatDA(location.caution)}</div>
+      </div>
+
+      <div style={{ marginTop: 48 }}>
+        Signature client : _________________________   Date : ___/___/______
+      </div>
+
+      <div style={{ marginTop: 48, fontSize: 11, textAlign: "center", color: "rgba(26,26,26,0.55)" }}>
+        Boutique des Rêves · Contact : 0555 00 00 00
+      </div>
+    </div>
+  );
+}
