@@ -1,10 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useStore, locReste, locVerse } from "@/lib/store";
 import { formatDA, formatDate } from "@/lib/format";
-import { Badge } from "@/components/ui-kit";
-import { Th, Td } from "./_app.clients";
-import { ArrowLeft, Plus } from "lucide-react";
+import { Badge, Modal } from "@/components/ui-kit";
+import { Th, Td, FieldLabel } from "./_app.clients";
+import { ArrowLeft, Plus, Pencil, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/_app/clients/$id")({
   component: ClientDetail,
@@ -17,10 +17,33 @@ function ClientDetail() {
   const setPending = useStore((s) => s.setPendingNewLocation);
   const setPendingOpen = useStore((s) => s.setPendingOpenLocation);
   const client = useStore((s) => s.clients.find((c) => c.id === id));
+  const updateClient = useStore((s) => s.updateClient);
+  const deleteClient = useStore((s) => s.deleteClient);
   const allLocations = useStore((s) => s.locations);
   const locations = useMemo(() => allLocations.filter((l) => l.clientId === id), [allLocations, id]);
   const articles = useStore((s) => s.articles);
 
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ name: "", phone: "", address: "", mesures: "" });
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  const openEdit = () => {
+    if (!client) return;
+    setEditForm({ name: client.name, phone: client.phone, address: client.address ?? "", mesures: client.mesures ?? "" });
+    setEditOpen(true);
+  };
+
+  const submitEdit = () => {
+    if (!editForm.name.trim() || !editForm.phone.trim()) return;
+    updateClient(id, { name: editForm.name, phone: editForm.phone, address: editForm.address, mesures: editForm.mesures });
+    setEditOpen(false);
+  };
+
+  const confirmDelete = () => {
+    deleteClient(id);
+    setDeleteOpen(false);
+    nav({ to: "/clients" });
+  };
 
   if (!client) return <div>Client introuvable.</div>;
 
@@ -43,9 +66,17 @@ function ClientDetail() {
               {client.mesures && <Chip>Mesures : {client.mesures}</Chip>}
             </div>
           </div>
-          <button onClick={() => { setPending(id); nav({ to: "/locations" }); }} className="btn-primary">
-            <Plus className="w-4 h-4" /> Nouvelle location
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={openEdit} className="btn-ghost" title="Modifier le client">
+              <Pencil className="w-4 h-4" /> Modifier
+            </button>
+            <button onClick={() => setDeleteOpen(true)} className="btn-danger" title="Supprimer le client">
+              <Trash2 className="w-4 h-4" /> Supprimer
+            </button>
+            <button onClick={() => { setPending(id); nav({ to: "/locations" }); }} className="btn-primary">
+              <Plus className="w-4 h-4" /> Nouvelle location
+            </button>
+          </div>
         </div>
       </div>
 
@@ -88,6 +119,44 @@ function ClientDetail() {
           </table>
         )}
       </div>
+
+      {/* Edit Client Modal */}
+      <Modal
+        open={editOpen} onClose={() => setEditOpen(false)} title="Modifier le client"
+        footer={<>
+          <button onClick={() => setEditOpen(false)} className="btn-danger">Annuler</button>
+          <button onClick={submitEdit} className="btn-primary">Enregistrer</button>
+        </>}
+      >
+        <div className="space-y-4">
+          <FieldLabel label="Nom complet">
+            <input className="input-field" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+          </FieldLabel>
+          <FieldLabel label="Téléphone">
+            <input className="input-field" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
+          </FieldLabel>
+          <FieldLabel label="Adresse">
+            <input className="input-field" value={editForm.address} onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} />
+          </FieldLabel>
+          <FieldLabel label="Mesures">
+            <input className="input-field" value={editForm.mesures} onChange={(e) => setEditForm({ ...editForm, mesures: e.target.value })} placeholder="Ex: M / 38" />
+          </FieldLabel>
+        </div>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        open={deleteOpen} onClose={() => setDeleteOpen(false)} title="Supprimer le client"
+        size="sm"
+        footer={<>
+          <button onClick={() => setDeleteOpen(false)} className="btn-danger">Annuler</button>
+          <button onClick={confirmDelete} className="btn-primary" style={{ background: "#C0392B" }}>Supprimer</button>
+        </>}
+      >
+        <p className="text-sm" style={{ color: "rgba(26,26,26,0.7)" }}>
+          Êtes-vous sûr de vouloir supprimer le client <strong>{client.name}</strong> ? Cette action est irréversible.
+        </p>
+      </Modal>
     </div>
   );
 }

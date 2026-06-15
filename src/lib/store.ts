@@ -89,6 +89,7 @@ interface StoreState {
 
   addClient: (c: Omit<Client, "id" | "createdAt">) => Client;
   updateClient: (id: string, c: Partial<Client>) => void;
+  deleteClient: (id: string) => void;
 
   addLocation: (l: Omit<Location, "id" | "createdAt" | "status" | "versements"> & { initialPayment?: number; versements?: Versement[] }) => Location;
   addVersement: (locId: string, v: Omit<Versement, "id">) => void;
@@ -216,6 +217,7 @@ export const useStore = create<StoreState>((set, get) => ({
     return client;
   },
   updateClient: (id, c) => set((s) => ({ clients: s.clients.map((x) => (x.id === id ? { ...x, ...c } : x)) })),
+  deleteClient: (id) => set((s) => ({ clients: s.clients.filter((x) => x.id !== id) })),
 
   addLocation: (l) => {
     const versements = l.versements ?? (l.initialPayment ? [{ id: uid(), date: l.pickupDate, amount: l.initialPayment, type: "Versement" as const }] : []);
