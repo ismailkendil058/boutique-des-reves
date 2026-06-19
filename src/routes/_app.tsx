@@ -1,8 +1,8 @@
 import { createFileRoute, Outlet, Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useStore } from "@/lib/store";
 import {
-  LayoutDashboard, Package, Users, CalendarDays, Wallet, UserCog, LogOut, FileText, BookMarked,
+  LayoutDashboard, Package, Users, CalendarDays, Wallet, UserCog, LogOut, FileText, BookMarked, Menu,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_app")({
@@ -44,6 +44,11 @@ function AppLayout() {
   if (!auth.role) return null;
 
   const items = NAV.filter((i) => !i.admin || auth.role === "admin");
+
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const openMobile = useCallback(() => setMobileOpen(true), []);
+  const closeMobile = useCallback(() => setMobileOpen(false), []);
 
   const handleLogout = () => {
     logout();
@@ -88,34 +93,65 @@ function AppLayout() {
         </div>
       </aside>
 
-      {/* Mobile bottom nav */}
-      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t flex justify-around" style={{ borderColor: "#E5E5E5" }}>
-        {items.slice(0, 5).map((item) => {
-          const active = path.startsWith(item.to);
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.to}
-              to={item.to}
-              className="flex-1 flex flex-col items-center py-2 text-[11px]"
-              style={{ color: active ? "#74367E" : "rgba(26,26,26,0.6)" }}
-            >
-              <Icon className="w-5 h-5 mb-0.5" />
-              {item.label.split(" ")[0]}
-            </Link>
-          );
-        })}
-      </nav>
+      {/* Mobile slide-out sidebar overlay */}
+      {mobileOpen && (
+        <div className="lg:hidden fixed inset-0 z-50" onClick={closeMobile}>
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/40" />
+          {/* Drawer */}
+          <aside
+            className="absolute left-0 top-0 bottom-0 w-[260px] bg-white flex flex-col shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-5 border-b" style={{ borderColor: "#E5E5E5" }}>
+              <div className="brand-name" style={{ fontSize: 18 }}>Boutique des Rêves</div>
+            </div>
+            <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+              {items.map((item) => {
+                const active = path.startsWith(item.to);
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    onClick={closeMobile}
+                    className="flex items-center gap-4 px-5 py-3.5 rounded-lg text-[15px] transition-colors relative"
+                    style={{
+                      background: active ? "rgba(116,54,126,0.08)" : "transparent",
+                      color: active ? "#74367E" : "#1A1A1A",
+                      fontWeight: active ? 500 : 400,
+                      borderLeft: active ? "3px solid #74367E" : "3px solid transparent",
+                      paddingLeft: active ? "13px" : "16px",
+                    }}
+                  >
+                <Icon className="w-5 h-5" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+        <div className="p-4 border-t" style={{ borderColor: "#E5E5E5" }}>
+          <div className="text-[14px]" style={{ color: "rgba(26,26,26,0.55)" }}>{auth.employeeName}</div>
+          <button onClick={handleLogout} className="mt-2 text-[14px] flex items-center gap-1.5" style={{ color: "#74367E" }}>
+            <LogOut className="w-4 h-4" /> Se déconnecter
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
 
       <main className="flex-1 min-w-0">
         {/* Mobile header */}
-        <header className="lg:hidden flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "#E5E5E5" }}>
-          <div className="brand-name" style={{ fontSize: 18 }}>Boutique des Rêves</div>
+        <header className="lg:hidden flex items-center px-3 py-1.5 border-b mt-8" style={{ borderColor: "#E5E5E5" }}>
+          <button onClick={openMobile} aria-label="Menu" className="mr-3" style={{ color: "#1A1A1A" }}>
+            <Menu className="w-5 h-5" />
+          </button>
+          <div className="brand-name flex-1" style={{ fontSize: 18 }}>Boutique des Rêves</div>
           <button onClick={handleLogout} aria-label="Déconnexion" style={{ color: "#74367E" }}>
             <LogOut className="w-5 h-5" />
           </button>
         </header>
-        <div className="p-6 lg:p-8 max-w-[1200px] mx-auto pb-24 lg:pb-8">
+        <div className="p-6 lg:p-8 max-w-[1200px] mx-auto pb-6 lg:pb-8">
           <Outlet />
         </div>
       </main>
