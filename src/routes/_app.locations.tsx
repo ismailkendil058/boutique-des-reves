@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useStore, locReste, locVerse, type Location } from "@/lib/store";
-import { formatDA, formatDate, today as todayStr } from "@/lib/format";
+import { formatDA, formatDate, today as todayStr, parseMachta, serializeMachta } from "@/lib/format";
 import { Modal, Drawer, Badge, EmptyState } from "@/components/ui-kit";
 import { Th, Td, FieldLabel } from "./_components/table";
-import { Plus, Printer, Trash2, CalendarDays, Pencil, Check, X, Save } from "lucide-react";
+import { Plus, Printer, Trash2, CalendarDays, Pencil, Check, X, Save, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 /** Get the effective price for an article in a location (custom override or default) */
@@ -98,7 +98,8 @@ function LocationsPage() {
             <tbody>
               {filtered.map((l) => {
                 const client = clients.find((c) => c.id === l.clientId);
-                const arts = articles.filter((a) => l.articleIds.includes(a.id)).map((a) => a.name).join(", ");
+                const machta = parseMachta(l.notes);
+                const arts = articles.filter((a) => l.articleIds.includes(a.id)).map((a) => a.name).join(", ") || (machta.active ? "Service Machta" : "Aucun");
                 const reste = locReste(l);
                 const overdue = l.status === "En retard";
                 return (
@@ -168,13 +169,16 @@ function NewLocationModal({ open, onClose }: { open: boolean; onClose: () => voi
   const [notes, setNotes] = useState("");
   const [initialPayment, setInitialPayment] = useState(0);
   const [err, setErr] = useState("");
+  const [machtaActive, setMachtaActive] = useState(false);
+  const [machtaPrice, setMachtaPrice] = useState(0);
 
-  const total = articles.filter((a) => selArticles.includes(a.id)).reduce((s, a) => s + (customPrices[a.id] ?? a.price), 0);
+  const totalArticles = articles.filter((a) => selArticles.includes(a.id)).reduce((s, a) => s + (customPrices[a.id] ?? a.price), 0);
+  const total = totalArticles + (machtaActive ? machtaPrice : 0);
   const reste = Math.max(0, total - initialPayment);
 
   const submit = async () => {
     if (!clientForm.name.trim()) { setErr("Nom du client requis"); return; }
-    if (selArticles.length === 0) { setErr("Sélectionnez au moins un article"); return; }
+    if (selArticles.length === 0 && !machtaActive) { setErr("Sélectionnez au moins un article ou le service Machta"); return; }
     if (returnDate < pickupDate) { setErr("Date de retour avant la date de retrait"); return; }
     if (initialPayment > total) { setErr("Le versement dépasse le total"); return; }
 
@@ -191,7 +195,7 @@ function NewLocationModal({ open, onClose }: { open: boolean; onClose: () => voi
       const articlePrices = hasCustomPrices ? Object.fromEntries(selArticles.map((id) => [id, customPrices[id] ?? articles.find((a) => a.id === id)!.price])) : undefined;
       await addLocation({
         clientId: client.id, articleIds: selArticles, articlePrices, pickupDate, returnDate, occasion,
-        total, caution: 0, notes, initialPayment,
+        total, caution: 0, notes: serializeMachta(notes, machtaActive, machtaPrice), initialPayment,
       });
       onClose();
     } catch (e) {
@@ -275,6 +279,41 @@ function NewLocationModal({ open, onClose }: { open: boolean; onClose: () => voi
           )}
         </Section>
 
+        {/* Step 2b: Service */}
+        <Section title="Service Additionnel">
+          <div className="flex items-center gap-4 p-3 rounded-lg border bg-white" style={{ borderColor: machtaActive ? "#74367E" : "#E5E5E5" }}>
+            <label className="flex items-center gap-2.5 cursor-pointer font-medium text-sm flex-1">
+              <input
+                type="checkbox"
+                checked={machtaActive}
+                onChange={(e) => {
+                  setMachtaActive(e.target.checked);
+                  if (e.target.checked && machtaPrice === 0) {
+                    setMachtaPrice(5000);
+                  }
+                }}
+                className="w-4 h-4 rounded text-[#74367E] focus:ring-[#74367E] border-gray-300"
+                style={{ accentColor: "#74367E" }}
+              />
+              <span>Service Machta</span>
+            </label>
+            {machtaActive && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-neutral-500">Prix :</span>
+                <input
+                  type="number"
+                  className="input-field w-28 text-right"
+                  value={machtaPrice || ""}
+                  placeholder="0"
+                  onChange={(e) => setMachtaPrice(Math.max(0, +e.target.value))}
+                  aria-label="Prix Machta"
+                />
+                <span className="text-xs" style={{ color: "rgba(26,26,26,0.45)" }}>DA</span>
+              </div>
+            )}
+          </div>
+        </Section>
+
         {/* Step 3 */}
         <Section title="3. Détails">
           <div className="grid grid-cols-2 gap-3">
@@ -347,6 +386,8 @@ function LocationArticlesSection({ location, articles }: { location: Location; a
 
   const cancel = () => setEditing(false);
 
+  const machta = parseMachta(location.notes);
+
   return (
     <Section title="Articles">
       <ul className="space-y-2">
@@ -374,6 +415,14 @@ function LocationArticlesSection({ location, articles }: { location: Location; a
             </li>
           );
         })}
+        {machta.active && (
+          <li className="flex items-center justify-between text-sm py-2 border-b" style={{ borderColor: "#E5E5E5" }}>
+            <span className="flex items-center gap-2">
+              Service Machta
+            </span>
+            <span style={{ color: "#74367E" }}>{formatDA(machta.price)}</span>
+          </li>
+        )}
       </ul>
       {isAdmin && (
         <div className="flex items-center justify-end gap-2 mt-3">
@@ -397,6 +446,69 @@ function LocationArticlesSection({ location, articles }: { location: Location; a
   );
 }
 
+// ─── Edit location modal (admin only) ────────────────────
+function EditLocationModal({ location, onClose }: { location: Location; onClose: () => void }) {
+  const updateLocation = useStore((s) => s.updateLocation);
+  const articles = useStore((s) => s.articles);
+
+  const [pickupDate, setPickupDate] = useState(location.pickupDate);
+  const [returnDate, setReturnDate] = useState(location.returnDate);
+  const [occasion, setOccasion] = useState(location.occasion);
+  const [notes, setNotes] = useState(location.notes ?? "");
+  const [total, setTotal] = useState(location.total);
+  const [err, setErr] = useState("");
+
+  const machta = parseMachta(location.notes);
+
+  const submit = async () => {
+    if (returnDate < pickupDate) { setErr("Date de retour avant la date de retrait"); return; }
+    if (total <= 0) { setErr("Le total doit être supérieur à 0"); return; }
+
+    await updateLocation(location.id, {
+      pickupDate,
+      returnDate,
+      occasion,
+      notes: serializeMachta(notes, machta.active, machta.price),
+      total,
+    });
+    toast.success("Location mise à jour");
+    onClose();
+  };
+
+  return (
+    <Modal
+      open={true} onClose={onClose} title="Modifier la location" size="lg"
+      footer={<>
+        <button onClick={onClose} className="btn-ghost">Annuler</button>
+        <button onClick={submit} className="btn-primary">Enregistrer</button>
+      </>}
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <FieldLabel label="Date de retrait">
+            <input type="date" className="input-field" value={pickupDate} onChange={(e) => setPickupDate(e.target.value)} />
+          </FieldLabel>
+          <FieldLabel label="Date de retour">
+            <input type="date" className="input-field" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} />
+          </FieldLabel>
+          <FieldLabel label="Occasion">
+            <select className="input-field" value={occasion} onChange={(e) => setOccasion(e.target.value)}>
+              <option>Mariage</option><option>Fiançailles</option><option>Cérémonie</option><option>Anniversaire</option><option>Autre</option>
+            </select>
+          </FieldLabel>
+          <FieldLabel label="Total (DA)">
+            <input type="number" className="input-field" value={total} onChange={(e) => setTotal(+e.target.value || 0)} />
+          </FieldLabel>
+        </div>
+        <FieldLabel label="Notes">
+          <input className="input-field" value={notes} onChange={(e) => setNotes(e.target.value)} />
+        </FieldLabel>
+        {err && <div className="text-sm" style={{ color: "#C0392B" }}>{err}</div>}
+      </div>
+    </Modal>
+  );
+}
+
 // ─── Location detail drawer ──────────────────────────────
 function LocationDetail({ location, onClose }: { location: Location; onClose: () => void }) {
   const clients = useStore((s) => s.clients);
@@ -405,11 +517,15 @@ function LocationDetail({ location, onClose }: { location: Location; onClose: ()
   const deleteVersement = useStore((s) => s.deleteVersement);
   const markReturned = useStore((s) => s.markReturned);
   const saveContract = useStore((s) => s.saveContract);
+  const deleteLocation = useStore((s) => s.deleteLocation);
+  const updateLocation = useStore((s) => s.updateLocation);
   const isAdmin = useStore((s) => s.auth.role === "admin");
 
   const [payOpen, setPayOpen] = useState(false);
   const [payAmount, setPayAmount] = useState(0);
   const [payDate, setPayDate] = useState(todayStr());
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const client = clients.find((c) => c.id === location.clientId);
   const arts = articles.filter((a) => location.articleIds.includes(a.id));
@@ -422,6 +538,12 @@ function LocationDetail({ location, onClose }: { location: Location; onClose: ()
     setPayAmount(0);
   };
 
+  const handleDelete = async () => {
+    await deleteLocation(location.id);
+    toast.success("Location supprimée");
+    onClose();
+  };
+
   return (
     <Drawer
       open={true} onClose={onClose}
@@ -432,18 +554,44 @@ function LocationDetail({ location, onClose }: { location: Location; onClose: ()
         <div className="flex items-center justify-between">
           <Badge status={location.status} />
           <div className="flex items-center gap-3">
+            {isAdmin && (
+              <>
+                <button
+                  onClick={() => setEditOpen(true)}
+                  className="cursor-pointer p-1.5 rounded-md hover:bg-[rgba(116,54,126,0.08)] transition-colors"
+                  style={{ color: "#74367E" }}
+                  title="Modifier"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  className="cursor-pointer p-1.5 rounded-md hover:bg-[rgba(192,57,43,0.08)] transition-colors"
+                  style={{ color: "#C0392B" }}
+                  title="Supprimer"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </>
+            )}
             <button
               onClick={() => {
                 saveContract(location.id);
                 toast.success("Contrat sauvegardé avec succès !");
               }}
-              className="text-sm flex items-center gap-1.5 cursor-pointer"
+              className="cursor-pointer p-1.5 rounded-md hover:bg-[rgba(116,54,126,0.08)] transition-colors"
               style={{ color: "#74367E" }}
+              title="Sauvegarder contrat"
             >
-              <Save className="w-4 h-4" /> Sauvegarder contrat
+              <Save className="w-4 h-4" />
             </button>
-            <button onClick={() => window.print()} className="text-sm flex items-center gap-1.5 cursor-pointer" style={{ color: "#74367E" }}>
-              <Printer className="w-4 h-4" /> Imprimer le contrat
+            <button
+              onClick={() => window.print()}
+              className="cursor-pointer p-1.5 rounded-md hover:bg-[rgba(116,54,126,0.08)] transition-colors"
+              style={{ color: "#74367E" }}
+              title="Imprimer le contrat"
+            >
+              <Printer className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -466,8 +614,8 @@ function LocationDetail({ location, onClose }: { location: Location; onClose: ()
             <span style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 20 }}>{formatDA(location.total)}</span>
           </div>
           <div className="space-y-1 mb-3">
-            {location.versements.length === 0 && <div className="text-xs" style={{ color: "rgba(26,26,26,0.55)" }}>Aucun versement</div>}
-            {location.versements.map((v) => (
+            {(location.versements ?? []).length === 0 && <div className="text-xs" style={{ color: "rgba(26,26,26,0.55)" }}>Aucun versement</div>}
+            {(location.versements ?? []).map((v) => (
               <div key={v.id} className="flex items-center justify-between text-sm py-1.5">
                 <span style={{ color: "rgba(26,26,26,0.7)" }}>{formatDate(v.date)} · {v.type}</span>
                 <span className="flex items-center gap-2">
@@ -517,6 +665,30 @@ function LocationDetail({ location, onClose }: { location: Location; onClose: ()
         </div>
       </Modal>
 
+      {/* Confirm delete modal */}
+      <Modal
+        open={confirmDelete} onClose={() => setConfirmDelete(false)} title="Supprimer la location" size="sm"
+        footer={<>
+          <button onClick={() => setConfirmDelete(false)} className="btn-ghost">Annuler</button>
+          <button onClick={handleDelete} className="btn-danger">Supprimer</button>
+        </>}
+      >
+        <div className="flex flex-col items-center gap-3 py-2 text-center">
+          <AlertTriangle className="w-10 h-10" style={{ color: "#C0392B" }} />
+          <p className="text-sm" style={{ color: "rgba(26,26,26,0.7)" }}>
+            Êtes-vous sûr de vouloir supprimer cette location ? Cette action est irréversible.
+          </p>
+        </div>
+      </Modal>
+
+      {/* Edit location modal */}
+      {editOpen && (
+        <EditLocationModal
+          location={location}
+          onClose={() => setEditOpen(false)}
+        />
+      )}
+
       {/* Print contract — visible only when printing */}
       <div className="print-area" style={{ display: "none" }}>
         <PrintContract location={location} />
@@ -533,6 +705,7 @@ function PrintContract({ location }: { location: Location }) {
   const arts = articles.filter((a) => location.articleIds.includes(a.id));
   const verse = locVerse(location);
   const reste = locReste(location);
+  const machta = parseMachta(location.notes);
 
   return (
     <div style={{ fontFamily: "DM Sans, sans-serif", color: "#1A1A1A", fontSize: 13, lineHeight: 1.4, height: "100%", position: "relative", boxSizing: "border-box" }}>
@@ -563,6 +736,12 @@ function PrintContract({ location }: { location: Location }) {
               <td style={{ padding: "6px 8px", textAlign: "right" }}>{formatDA(getArticlePrice(location, a.id, a.price))}</td>
             </tr>
           ))}
+          {machta.active && (
+            <tr style={{ borderBottom: "1px solid #E5E5E5" }}>
+              <td style={{ padding: "6px 8px" }}>Service Machta</td>
+              <td style={{ padding: "6px 8px", textAlign: "right" }}>{formatDA(machta.price)}</td>
+            </tr>
+          )}
         </tbody>
       </table>
 

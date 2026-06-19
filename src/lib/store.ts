@@ -1,6 +1,7 @@
 // src/lib/store.ts
 import { create } from "zustand";
 import api from "./api";
+import { parseMachta } from "./format";
 
 /** Types imported from the API layer */
 import type { Article, Client, Employee, Location, Reservation, SavedContract, Versement, Category, ArticleStatus } from "./types";
@@ -48,6 +49,8 @@ export interface StoreState {
   updateClient: (id: string, c: Partial<Client>) => Promise<void>;
   deleteClient: (id: string) => Promise<void>;
   addLocation: (l: Omit<Location, "id" | "status" | "versements" | "createdAt"> & { initialPayment?: number; versements?: Versement[] }) => Promise<void>;
+  updateLocation: (id: string, updates: Partial<Location>) => Promise<void>;
+  deleteLocation: (id: string) => Promise<void>;
   addVersement: (locId: string, v: Omit<Versement, "id">) => Promise<void>;
   deleteVersement: (locId: string, verseId: string) => Promise<void>;
   markReturned: (locId: string, returnDate: string) => Promise<void>;
@@ -158,6 +161,22 @@ export const useStore = create<StoreState>((set, get) => ({
     const loc = await api.createLocation(l);
     set((s) => ({ locations: [...s.locations, loc] }));
   },
+  updateLocation: async (id, updates) => {
+    const updated = await api.updateLocation(id, updates);
+    set((s) => ({ locations: s.locations.map((l) => (l.id === id ? updated : l)) }));
+  },
+  deleteLocation: async (id) => {
+    // Delete saved contracts referencing this location first
+    const contracts = get().savedContracts.filter((c) => c.locationId === id);
+    for (const c of contracts) {
+      await api.deleteSavedContract(c.id);
+    }
+    await api.deleteLocation(id);
+    set((s) => ({
+      locations: s.locations.filter((l) => l.id !== id),
+      savedContracts: s.savedContracts.filter((c) => c.locationId !== id),
+    }));
+  },
   addVersement: async (locId, v) => {
     const verse = await api.addVersement(locId, v);
     set((s) => ({
@@ -224,6 +243,12 @@ export const useStore = create<StoreState>((set, get) => ({
     const verse = locVerse(loc);
     const reste = locReste(loc);
 
+    const machta = parseMachta(loc.notes);
+    const contractArticles = articles.map((a) => ({ name: a.name, price: loc.articlePrices?.[a.id] ?? a.price }));
+    if (machta.active) {
+      contractArticles.push({ name: "Service Machta", price: machta.price });
+    }
+
     const payload = {
       locationId: loc.id,
       clientId: loc.clientId,
@@ -235,8 +260,8 @@ export const useStore = create<StoreState>((set, get) => ({
       caution: 0,
       verse,
       reste,
-      notes: loc.notes,
-      articles: articles.map((a) => ({ name: a.name, price: loc.articlePrices?.[a.id] ?? a.price })),
+      notes: machta.cleanNotes,
+      articles: contractArticles,
     };
 
     const saved = await api.saveContract(payload as any);

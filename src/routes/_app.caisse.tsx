@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useStore, locReste } from "@/lib/store";
-import { formatDA, formatDate } from "@/lib/format";
+import { formatDA, formatDate, parseMachta } from "@/lib/format";
 import { Th, Td } from "./_components/table";
 
 export const Route = createFileRoute("/_app/caisse")({
@@ -151,7 +151,8 @@ function CaissePage() {
             <tbody>
               {allVersements.map((v) => {
                 const client = clients.find((c) => c.id === v.location.clientId);
-                const arts = articles.filter((a) => v.location.articleIds.includes(a.id)).map((a) => a.name).join(", ");
+                const machta = parseMachta(v.location.notes);
+                const arts = articles.filter((a) => v.location.articleIds.includes(a.id)).map((a) => a.name).join(", ") || (machta.active ? "Service Machta" : "Aucun");
                 return (
                   <tr key={v.id} style={{ borderBottom: "1px solid #E5E5E5" }}>
                     <Td>{formatDate(v.date)}</Td>

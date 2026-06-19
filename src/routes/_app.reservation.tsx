@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useStore, type Reservation } from "@/lib/store";
-import { formatDA, formatDate, today as todayStr } from "@/lib/format";
+import { formatDA, formatDate, today as todayStr, parseMachta, serializeMachta } from "@/lib/format";
 import { Modal, Drawer, Badge, EmptyState } from "@/components/ui-kit";
 import { Th, Td, FieldLabel } from "./_components/table";
 import { Plus, Trash2, BookMarked, CheckCircle } from "lucide-react";
@@ -58,7 +58,8 @@ function ReservationPage() {
             <tbody>
               {reservations.map((r) => {
                 const client = clients.find((c) => c.id === r.clientId);
-                const arts = articles.filter((a) => r.articleIds.includes(a.id)).map((a) => a.name).join(", ");
+                const machta = parseMachta(r.notes);
+                const arts = articles.filter((a) => r.articleIds.includes(a.id)).map((a) => a.name).join(", ") || (machta.active ? "Service Machta" : "Aucun");
                 return (
                   <tr
                     key={r.id}
@@ -124,12 +125,15 @@ function NewReservationModal({ open, onClose }: { open: boolean; onClose: () => 
   const [occasion, setOccasion] = useState<"Mariage" | "Fiançailles" | "Cérémonie" | "Anniversaire" | "Autre">("Mariage");
   const [notes, setNotes] = useState("");
   const [err, setErr] = useState("");
+  const [machtaActive, setMachtaActive] = useState(false);
+  const [machtaPrice, setMachtaPrice] = useState(0);
 
-  const total = articles.filter((a) => selArticles.includes(a.id)).reduce((s, a) => s + (customPrices[a.id] ?? a.price), 0);
+  const totalArticles = articles.filter((a) => selArticles.includes(a.id)).reduce((s, a) => s + (customPrices[a.id] ?? a.price), 0);
+  const total = totalArticles + (machtaActive ? machtaPrice : 0);
 
   const submit = async () => {
     if (!clientForm.name.trim()) { setErr("Nom du client requis"); return; }
-    if (selArticles.length === 0) { setErr("Sélectionnez au moins un article"); return; }
+    if (selArticles.length === 0 && !machtaActive) { setErr("Sélectionnez au moins un article ou le service Machta"); return; }
     if (returnDate < pickupDate) { setErr("Date de retour avant la date de retrait"); return; }
 
     try {
@@ -145,7 +149,7 @@ function NewReservationModal({ open, onClose }: { open: boolean; onClose: () => 
         ? Object.fromEntries(selArticles.map((id) => [id, customPrices[id] ?? articles.find((a) => a.id === id)!.price]))
         : undefined;
 
-      await addReservation({ clientId: client.id, articleIds: selArticles, articlePrices, pickupDate, returnDate, occasion, total, caution: 0, notes });
+      await addReservation({ clientId: client.id, articleIds: selArticles, articlePrices, pickupDate, returnDate, occasion, total, caution: 0, notes: serializeMachta(notes, machtaActive, machtaPrice) });
       toast.success("Réservation créée !");
       onClose();
     } catch (e) {
@@ -220,6 +224,41 @@ function NewReservationModal({ open, onClose }: { open: boolean; onClose: () => 
           )}
         </Section>
 
+        {/* Service */}
+        <Section title="Service Additionnel">
+          <div className="flex items-center gap-4 p-3 rounded-lg border bg-white" style={{ borderColor: machtaActive ? "#74367E" : "#E5E5E5" }}>
+            <label className="flex items-center gap-2.5 cursor-pointer font-medium text-sm flex-1">
+              <input
+                type="checkbox"
+                checked={machtaActive}
+                onChange={(e) => {
+                  setMachtaActive(e.target.checked);
+                  if (e.target.checked && machtaPrice === 0) {
+                    setMachtaPrice(5000);
+                  }
+                }}
+                className="w-4 h-4 rounded text-[#74367E] focus:ring-[#74367E] border-gray-300"
+                style={{ accentColor: "#74367E" }}
+              />
+              <span>Service Machta</span>
+            </label>
+            {machtaActive && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-neutral-500">Prix :</span>
+                <input
+                  type="number"
+                  className="input-field w-28 text-right"
+                  value={machtaPrice || ""}
+                  placeholder="0"
+                  onChange={(e) => setMachtaPrice(Math.max(0, +e.target.value))}
+                  aria-label="Prix Machta"
+                />
+                <span className="text-xs" style={{ color: "rgba(26,26,26,0.45)" }}>DA</span>
+              </div>
+            )}
+          </div>
+        </Section>
+
         {/* Dates */}
         <Section title="3. Détails">
           <div className="grid grid-cols-2 gap-3">
@@ -263,6 +302,7 @@ function ReservationDetail({ reservation, onClose }: { reservation: Reservation;
 
   const client = clients.find((c) => c.id === reservation.clientId);
   const arts = articles.filter((a) => reservation.articleIds.includes(a.id));
+  const machta = parseMachta(reservation.notes);
 
   const doValidate = () => {
     if (initialPayment > reservation.total) return;
@@ -316,6 +356,12 @@ function ReservationDetail({ reservation, onClose }: { reservation: Reservation;
                 <span style={{ color: "#74367E" }}>{formatDA(getResArticlePrice(reservation, a.id, a.price))}</span>
               </li>
             ))}
+            {machta.active && (
+              <li className="flex items-center justify-between text-sm py-2 border-b" style={{ borderColor: "#E5E5E5" }}>
+                <span>Service Machta</span>
+                <span style={{ color: "#74367E" }}>{formatDA(machta.price)}</span>
+              </li>
+            )}
           </ul>
         </Section>
 
@@ -335,9 +381,9 @@ function ReservationDetail({ reservation, onClose }: { reservation: Reservation;
             <span>Total</span>
             <span style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 20 }}>{formatDA(reservation.total)}</span>
           </div>
-          {reservation.notes && (
+          {machta.cleanNotes && (
             <div className="mt-3 text-sm pt-3 border-t" style={{ borderColor: "#E5E5E5", color: "rgba(26,26,26,0.65)" }}>
-              Notes : {reservation.notes}
+              Notes : {machta.cleanNotes}
             </div>
           )}
         </div>
