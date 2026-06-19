@@ -31,6 +31,13 @@ function AppLayout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth.role]);
 
+  // Load all data from Supabase after authentication
+  useEffect(() => {
+    if (auth.role) {
+      useStore.getState().loadAllData();
+    }
+  }, [auth.role]);
+
   if (!auth.role) return null;
 
   const items = NAV.filter((i) => !i.admin || auth.role === "admin");
