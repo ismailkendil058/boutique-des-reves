@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import { Modal } from "@/components/ui-kit";
-import { Th, Td, FieldLabel } from "./_app.clients";
+import { Th, Td, FieldLabel } from "./_components/table";
 import { Plus } from "lucide-react";
 
 export const Route = createFileRoute("/_app/employes")({

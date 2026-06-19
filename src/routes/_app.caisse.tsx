@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useStore, locReste } from "@/lib/store";
 import { formatDA, formatDate } from "@/lib/format";
-import { Th, Td } from "./_app.clients";
+import { Th, Td } from "./_components/table";
 
 export const Route = createFileRoute("/_app/caisse")({
   component: CaissePage,

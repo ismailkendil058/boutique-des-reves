@@ -3,7 +3,7 @@ import { create } from "zustand";
 import api from "./api";
 
 /** Types imported from the API layer */
-import type { Article, Client, Employee, Location, Reservation, SavedContract, Versement } from "./api";
+import type { Article, Client, Employee, Location, Reservation, SavedContract, Versement } from "./types";
 export type { Article, Client, Employee, Location, Reservation, SavedContract, Versement };
 
 /** Calculate remaining amount for a location */
@@ -42,7 +42,7 @@ export interface StoreState {
   addArticle: (a: Omit<Article, "id">) => Promise<void>;
   updateArticle: (id: string, a: Partial<Article>) => Promise<void>;
   deleteArticle: (id: string) => Promise<void>;
-  addClient: (c: Omit<Client, "id" | "createdAt">) => Promise<void>;
+  addClient: (c: Omit<Client, "id" | "createdAt">) => Promise<Client>;
   updateClient: (id: string, c: Partial<Client>) => Promise<void>;
   deleteClient: (id: string) => Promise<void>;
   addLocation: (l: Omit<Location, "id" | "status" | "versements" | "createdAt"> & { initialPayment?: number; versements?: Versement[] }) => Promise<void>;
@@ -133,6 +133,7 @@ export const useStore = create<StoreState>((set, get) => ({
   addClient: async (c) => {
     const client = await api.createClient(c);
     set((s) => ({ clients: [...s.clients, client] }));
+    return client;
   },
   updateClient: async (id, c) => {
     const updated = await api.updateClient(id, c);

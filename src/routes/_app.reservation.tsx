@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useStore, type Reservation } from "@/lib/store";
 import { formatDA, formatDate, today as todayStr } from "@/lib/format";
 import { Modal, Drawer, Badge, EmptyState } from "@/components/ui-kit";
-import { Th, Td, FieldLabel } from "./_app.clients";
+import { Th, Td, FieldLabel } from "./_components/table";
 import { Plus, Trash2, BookMarked, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 
@@ -111,14 +111,11 @@ function ReservationPage() {
 
 // ─── New reservation modal ────────────────────────────────
 function NewReservationModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const clients = useStore((s) => s.clients);
   const articles = useStore((s) => s.articles);
   const addClient = useStore((s) => s.addClient);
   const addReservation = useStore((s) => s.addReservation);
 
-  const [clientId, setClientId] = useState("");
-  const [creatingClient, setCreatingClient] = useState(false);
-  const [newClient, setNewClient] = useState({ name: "", phone: "" });
+  const [clientForm, setClientForm] = useState({ name: "", phone: "", address: "" });
 
   const [selArticles, setSelArticles] = useState<string[]>([]);
   const [customPrices, setCustomPrices] = useState<Record<string, number>>({});
@@ -133,24 +130,30 @@ function NewReservationModal({ open, onClose }: { open: boolean; onClose: () => 
   const cautionAuto = articles.filter((a) => selArticles.includes(a.id)).reduce((s, a) => s + a.caution, 0);
   const finalCaution = caution || cautionAuto;
 
-  const submit = () => {
-    let cId = clientId;
-    if (creatingClient) {
-      if (!newClient.name.trim() || !newClient.phone.trim()) { setErr("Renseignez le client"); return; }
-      cId = addClient(newClient).id;
-    }
-    if (!cId) { setErr("Sélectionnez un client"); return; }
+  const submit = async () => {
+    if (!clientForm.name.trim()) { setErr("Nom du client requis"); return; }
     if (selArticles.length === 0) { setErr("Sélectionnez au moins un article"); return; }
     if (returnDate < pickupDate) { setErr("Date de retour avant la date de retrait"); return; }
 
-    const hasCustomPrices = selArticles.some((id) => customPrices[id] !== undefined);
-    const articlePrices = hasCustomPrices
-      ? Object.fromEntries(selArticles.map((id) => [id, customPrices[id] ?? articles.find((a) => a.id === id)!.price]))
-      : undefined;
+    try {
+      const client = await addClient({
+        name: clientForm.name.trim(),
+        phone: clientForm.phone.trim(),
+        address: clientForm.address.trim(),
+        mesures: "",
+      });
 
-    addReservation({ clientId: cId, articleIds: selArticles, articlePrices, pickupDate, returnDate, occasion, total, caution: finalCaution, notes });
-    toast.success("Réservation créée !");
-    onClose();
+      const hasCustomPrices = selArticles.some((id) => customPrices[id] !== undefined);
+      const articlePrices = hasCustomPrices
+        ? Object.fromEntries(selArticles.map((id) => [id, customPrices[id] ?? articles.find((a) => a.id === id)!.price]))
+        : undefined;
+
+      await addReservation({ clientId: client.id, articleIds: selArticles, articlePrices, pickupDate, returnDate, occasion, total, caution: finalCaution, notes });
+      toast.success("Réservation créée !");
+      onClose();
+    } catch (e) {
+      setErr("Erreur lors de la création de la réservation");
+    }
   };
 
   const availableArts = articles.filter((a) => a.status === "Disponible" || selArticles.includes(a.id));
@@ -166,21 +169,11 @@ function NewReservationModal({ open, onClose }: { open: boolean; onClose: () => 
       <div className="space-y-6">
         {/* Client */}
         <Section title="1. Client">
-          {!creatingClient ? (
-            <div className="flex gap-2">
-              <select className="input-field" value={clientId} onChange={(e) => setClientId(e.target.value)}>
-                <option value="">— Choisir un client —</option>
-                {clients.map((c) => <option key={c.id} value={c.id}>{c.name} · {c.phone}</option>)}
-              </select>
-              <button onClick={() => setCreatingClient(true)} className="btn-ghost whitespace-nowrap">+ Créer</button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3">
-              <input className="input-field" placeholder="Nom" value={newClient.name} onChange={(e) => setNewClient({ ...newClient, name: e.target.value })} />
-              <input className="input-field" placeholder="Téléphone" value={newClient.phone} onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })} />
-              <button onClick={() => setCreatingClient(false)} className="text-xs col-span-2 text-left" style={{ color: "#74367E" }}>← Choisir un client existant</button>
-            </div>
-          )}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <FieldLabel label="Nom complet"><input className="input-field" placeholder="Nom complet" value={clientForm.name} onChange={(e) => setClientForm({ ...clientForm, name: e.target.value })} /></FieldLabel>
+            <FieldLabel label="Téléphone"><input className="input-field" placeholder="Téléphone (Optionnel)" value={clientForm.phone} onChange={(e) => setClientForm({ ...clientForm, phone: e.target.value })} /></FieldLabel>
+            <FieldLabel label="Adresse"><input className="input-field" placeholder="Adresse (Optionnel)" value={clientForm.address} onChange={(e) => setClientForm({ ...clientForm, address: e.target.value })} /></FieldLabel>
+          </div>
         </Section>
 
         {/* Articles */}

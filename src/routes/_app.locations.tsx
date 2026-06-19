@@ -59,7 +59,9 @@ function LocationsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="page-title">Locations</h1>
-        
+        <button onClick={() => setNewOpen(true)} className="btn-primary">
+          <Plus className="w-4 h-4" /> Nouvelle location
+        </button>
       </div>
 
       <div className="flex gap-1 border-b overflow-x-auto" style={{ borderColor: "#E5E5E5" }}>
@@ -144,22 +146,19 @@ function LocationsPage() {
         </div>
       )}
 
-      {newOpen && <NewLocationModal open={newOpen} onClose={() => setNewOpen(false)} prefillClientId={prefillClient} />}
+      {newOpen && <NewLocationModal open={newOpen} onClose={() => setNewOpen(false)} />}
       {openLoc && <LocationDetail location={openLoc} onClose={() => setOpenId(null)} />}
     </div>
   );
 }
 
 // ─── New location modal ──────────────────────────────────
-function NewLocationModal({ open, onClose, prefillClientId }: { open: boolean; onClose: () => void; prefillClientId: string | null }) {
-  const clients = useStore((s) => s.clients);
+function NewLocationModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const articles = useStore((s) => s.articles);
   const addClient = useStore((s) => s.addClient);
   const addLocation = useStore((s) => s.addLocation);
 
-  const [clientId, setClientId] = useState(prefillClientId ?? "");
-  const [creatingClient, setCreatingClient] = useState(false);
-  const [newClient, setNewClient] = useState({ name: "", phone: "" });
+  const [clientForm, setClientForm] = useState({ name: "", phone: "", address: "" });
 
   const [selArticles, setSelArticles] = useState<string[]>([]);
   const [customPrices, setCustomPrices] = useState<Record<string, number>>({});
@@ -176,24 +175,31 @@ function NewLocationModal({ open, onClose, prefillClientId }: { open: boolean; o
   const finalCaution = caution || cautionAuto;
   const reste = Math.max(0, total - initialPayment);
 
-  const submit = () => {
-    let cId = clientId;
-    if (creatingClient) {
-      if (!newClient.name.trim() || !newClient.phone.trim()) { setErr("Renseignez le client"); return; }
-      cId = addClient(newClient).id;
-    }
-    if (!cId) { setErr("Sélectionnez un client"); return; }
+  const submit = async () => {
+    if (!clientForm.name.trim()) { setErr("Nom du client requis"); return; }
     if (selArticles.length === 0) { setErr("Sélectionnez au moins un article"); return; }
     if (returnDate < pickupDate) { setErr("Date de retour avant la date de retrait"); return; }
     if (initialPayment > total) { setErr("Le versement dépasse le total"); return; }
-    // Build articlePrices only if any custom prices were set
-    const hasCustomPrices = selArticles.some((id) => customPrices[id] !== undefined);
-    const articlePrices = hasCustomPrices ? Object.fromEntries(selArticles.map((id) => [id, customPrices[id] ?? articles.find((a) => a.id === id)!.price])) : undefined;
-    addLocation({
-      clientId: cId, articleIds: selArticles, articlePrices, pickupDate, returnDate, occasion,
-      total, caution: finalCaution, notes, initialPayment,
-    });
-    onClose();
+
+    try {
+      const client = await addClient({
+        name: clientForm.name.trim(),
+        phone: clientForm.phone.trim(),
+        address: clientForm.address.trim(),
+        mesures: "",
+      });
+
+      // Build articlePrices only if any custom prices were set
+      const hasCustomPrices = selArticles.some((id) => customPrices[id] !== undefined);
+      const articlePrices = hasCustomPrices ? Object.fromEntries(selArticles.map((id) => [id, customPrices[id] ?? articles.find((a) => a.id === id)!.price])) : undefined;
+      await addLocation({
+        clientId: client.id, articleIds: selArticles, articlePrices, pickupDate, returnDate, occasion,
+        total, caution: finalCaution, notes, initialPayment,
+      });
+      onClose();
+    } catch (e) {
+      setErr("Erreur lors de la création de la location");
+    }
   };
 
   const availableArts = articles.filter((a) => a.status === "Disponible" || selArticles.includes(a.id));
@@ -209,21 +215,11 @@ function NewLocationModal({ open, onClose, prefillClientId }: { open: boolean; o
       <div className="space-y-6">
         {/* Step 1 */}
         <Section title="1. Client">
-          {!creatingClient ? (
-            <div className="flex gap-2">
-              <select className="input-field" value={clientId} onChange={(e) => setClientId(e.target.value)}>
-                <option value="">— Choisir un client —</option>
-                {clients.map((c) => <option key={c.id} value={c.id}>{c.name} · {c.phone}</option>)}
-              </select>
-              <button onClick={() => setCreatingClient(true)} className="btn-ghost whitespace-nowrap">+ Créer</button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3">
-              <input className="input-field" placeholder="Nom" value={newClient.name} onChange={(e) => setNewClient({ ...newClient, name: e.target.value })} />
-              <input className="input-field" placeholder="Téléphone" value={newClient.phone} onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })} />
-              <button onClick={() => setCreatingClient(false)} className="text-xs col-span-2 text-left" style={{ color: "#74367E" }}>← Choisir un client existant</button>
-            </div>
-          )}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <FieldLabel label="Nom complet"><input className="input-field" placeholder="Nom complet" value={clientForm.name} onChange={(e) => setClientForm({ ...clientForm, name: e.target.value })} /></FieldLabel>
+            <FieldLabel label="Téléphone"><input className="input-field" placeholder="Téléphone (Optionnel)" value={clientForm.phone} onChange={(e) => setClientForm({ ...clientForm, phone: e.target.value })} /></FieldLabel>
+            <FieldLabel label="Adresse"><input className="input-field" placeholder="Adresse (Optionnel)" value={clientForm.address} onChange={(e) => setClientForm({ ...clientForm, address: e.target.value })} /></FieldLabel>
+          </div>
         </Section>
 
         {/* Step 2 */}

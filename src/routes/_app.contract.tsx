@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useStore, type SavedContract } from "@/lib/store";
 import { formatDA, formatDate } from "@/lib/format";
-import { Th, Td } from "./_app.clients";
+import { Th, Td } from "./_components/table";
 import { Printer, Trash2, Eye, FileText } from "lucide-react";
 import { Modal, EmptyState } from "@/components/ui-kit";
 import { toast } from "sonner";

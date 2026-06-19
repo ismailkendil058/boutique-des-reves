@@ -12,7 +12,6 @@ export const Route = createFileRoute("/_app")({
 const NAV = [
   { to: "/dashboard", label: "Tableau de bord", icon: LayoutDashboard, admin: true },
   { to: "/stock", label: "Stock", icon: Package },
-  { to: "/clients", label: "Clients", icon: Users },
   { to: "/locations", label: "Locations", icon: CalendarDays },
   { to: "/reservation", label: "Réservations", icon: BookMarked },
   { to: "/contract", label: "Contrats", icon: FileText },

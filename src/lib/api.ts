@@ -1,6 +1,6 @@
 // src/lib/api.ts
 import { supabase } from "./supabaseClient";
-import type { Article, Client, Employee, Location, Reservation, SavedContract, Versement } from "./store";
+import type { Article, Client, Employee, Location, Reservation, SavedContract, Versement } from "./types";
 
 /** Helper to handle errors */
 function handleError(error: any) {
