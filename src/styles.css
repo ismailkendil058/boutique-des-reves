@@ -204,8 +204,12 @@
 .animate-shake { animation: shake 0.5s; }
 
 @media print {
+  @page {
+    size: A5;
+    margin: 10mm;
+  }
   body * { visibility: hidden; }
   .print-area, .print-area * { visibility: visible; }
-  .print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 32px; }
+  .print-area { position: absolute; left: 0; top: 0; width: 100%; height: 100%; padding: 0; }
   .no-print { display: none !important; }
 }

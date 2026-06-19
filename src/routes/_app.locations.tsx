@@ -3,8 +3,9 @@ import { useEffect, useState } from "react";
 import { useStore, locReste, locVerse, type Location } from "@/lib/store";
 import { formatDA, formatDate, today as todayStr } from "@/lib/format";
 import { Modal, Drawer, Badge, EmptyState } from "@/components/ui-kit";
-import { Th, Td, FieldLabel } from "./_app.clients";
-import { Plus, Printer, Trash2, CalendarDays, Pencil, Check, X } from "lucide-react";
+import { Th, Td, FieldLabel } from "./_components/table";
+import { Plus, Printer, Trash2, CalendarDays, Pencil, Check, X, Save } from "lucide-react";
+import { toast } from "sonner";
 
 /** Get the effective price for an article in a location (custom override or default) */
 function getArticlePrice(location: Location, articleId: string, defaultPrice: number): number {
@@ -58,9 +59,7 @@ function LocationsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="page-title">Locations</h1>
-        <button onClick={() => { setPrefillClient(null); setNewOpen(true); }} className="btn-primary">
-          <Plus className="w-4 h-4" /> Nouvelle location
-        </button>
+        
       </div>
 
       <div className="flex gap-1 border-b overflow-x-auto" style={{ borderColor: "#E5E5E5" }}>
@@ -416,6 +415,7 @@ function LocationDetail({ location, onClose }: { location: Location; onClose: ()
   const deleteVersement = useStore((s) => s.deleteVersement);
   const markReturned = useStore((s) => s.markReturned);
   const markCautionReturned = useStore((s) => s.markCautionReturned);
+  const saveContract = useStore((s) => s.saveContract);
   const isAdmin = useStore((s) => s.auth.role === "admin");
 
   const [payOpen, setPayOpen] = useState(false);
@@ -442,9 +442,21 @@ function LocationDetail({ location, onClose }: { location: Location; onClose: ()
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <Badge status={location.status} />
-          <button onClick={() => window.print()} className="text-sm flex items-center gap-1.5" style={{ color: "#74367E" }}>
-            <Printer className="w-4 h-4" /> Imprimer le contrat
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                saveContract(location.id);
+                toast.success("Contrat sauvegardé avec succès !");
+              }}
+              className="text-sm flex items-center gap-1.5 cursor-pointer"
+              style={{ color: "#74367E" }}
+            >
+              <Save className="w-4 h-4" /> Sauvegarder contrat
+            </button>
+            <button onClick={() => window.print()} className="text-sm flex items-center gap-1.5 cursor-pointer" style={{ color: "#74367E" }}>
+              <Printer className="w-4 h-4" /> Imprimer le contrat
+            </button>
+          </div>
         </div>
 
         <LocationArticlesSection location={location} articles={arts} />
@@ -541,56 +553,74 @@ function PrintContract({ location }: { location: Location }) {
   const reste = locReste(location);
 
   return (
-    <div style={{ fontFamily: "DM Sans, sans-serif", color: "#1A1A1A", fontSize: 14 }}>
-      <div style={{ textAlign: "center", paddingBottom: 16, borderBottom: "2px solid #74367E" }}>
-        <div style={{ fontFamily: "Cormorant Garamond, serif", fontStyle: "italic", fontSize: 32, color: "#74367E", letterSpacing: "0.15em" }}>
+    <div style={{ fontFamily: "DM Sans, sans-serif", color: "#1A1A1A", fontSize: 13, lineHeight: 1.4, height: "100%", position: "relative", boxSizing: "border-box" }}>
+      <div style={{ textAlign: "center", paddingBottom: 12, borderBottom: "2px solid #74367E" }}>
+        <div style={{ fontFamily: "Cormorant Garamond, serif", fontStyle: "italic", fontSize: 26, color: "#74367E", letterSpacing: "0.15em" }}>
           Boutique des Rêves
         </div>
-        <div style={{ fontSize: 12, marginTop: 4, color: "rgba(26,26,26,0.6)" }}>Contrat de location</div>
+        <div style={{ fontSize: 11, marginTop: 2, color: "rgba(26,26,26,0.6)" }}>Contrat de location</div>
       </div>
 
-      <div style={{ marginTop: 24 }}>
+      <div style={{ marginTop: 16 }}>
         <strong>Client :</strong> {client?.name}<br />
         <strong>Téléphone :</strong> {client?.phone}<br />
         {client?.address && <><strong>Adresse :</strong> {client.address}<br /></>}
       </div>
 
-      <table style={{ width: "100%", marginTop: 24, borderCollapse: "collapse" }}>
+      <table style={{ width: "100%", marginTop: 16, borderCollapse: "collapse" }}>
         <thead>
           <tr style={{ borderBottom: "1px solid #E5E5E5" }}>
-            <th style={{ textAlign: "left", padding: 8 }}>Article</th>
-            <th style={{ textAlign: "right", padding: 8 }}>Prix</th>
+            <th style={{ textAlign: "left", padding: "6px 8px" }}>Article</th>
+            <th style={{ textAlign: "right", padding: "6px 8px" }}>Prix</th>
           </tr>
         </thead>
         <tbody>
           {arts.map((a) => (
             <tr key={a.id} style={{ borderBottom: "1px solid #E5E5E5" }}>
-              <td style={{ padding: 8 }}>{a.name}</td>
-              <td style={{ padding: 8, textAlign: "right" }}>{formatDA(getArticlePrice(location, a.id, a.price))}</td>
+              <td style={{ padding: "6px 8px" }}>{a.name}</td>
+              <td style={{ padding: "6px 8px", textAlign: "right" }}>{formatDA(getArticlePrice(location, a.id, a.price))}</td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      <div style={{ marginTop: 24 }}>
+      <div style={{ marginTop: 16 }}>
         <div>Retrait : {formatDate(location.pickupDate)}</div>
         <div>Retour prévu : {formatDate(location.returnDate)}</div>
-        <div>Occasion : {location.occasion}</div>
       </div>
 
-      <div style={{ marginTop: 24, padding: 16, border: "1px solid #E5E5E5", borderRadius: 8 }}>
+      <div style={{ marginTop: 16, padding: 12, border: "1px solid #E5E5E5", borderRadius: 8, textAlign: "center" }}>
         <div>Total : <strong>{formatDA(location.total)}</strong></div>
         <div>Versé : {formatDA(verse)}</div>
         <div>Reste : <strong style={{ color: "#74367E" }}>{formatDA(reste)}</strong></div>
         <div>Caution : {formatDA(location.caution)}</div>
       </div>
 
-      <div style={{ marginTop: 48 }}>
+      <div style={{ marginTop: 32 }}>
         Signature client : _________________________   Date : ___/___/______
       </div>
 
-      <div style={{ marginTop: 48, fontSize: 11, textAlign: "center", color: "rgba(26,26,26,0.55)" }}>
-        Boutique des Rêves · Contact : 0555 00 00 00
+      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, fontSize: 10, textAlign: "center", color: "rgba(26,26,26,0.55)", lineHeight: 1.5 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flexWrap: "wrap" }}>
+          <span>Les versements effectués ne sont pas remboursables. · Pièce d'identité obligatoire.</span>
+          <span style={{ color: "rgba(26,26,26,0.3)" }}>|</span>
+          <span dir="rtl">المبالغ المدفوعة غير قابلة للاسترداد. · بطاقة الهوية إجبارية.</span>
+        </div>
+        <div style={{ marginTop: 8, borderTop: "1px solid #E5E5E5", paddingTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+              <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+              <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+            </svg>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" />
+            </svg>
+            <strong style={{ fontWeight: 600 }}>boutique_des_reves_</strong>
+          </span>
+          <span style={{ color: "rgba(26,26,26,0.3)" }}>·</span>
+          <span>Contact : 0774 22 39 50</span>
+        </div>
       </div>
     </div>
   );

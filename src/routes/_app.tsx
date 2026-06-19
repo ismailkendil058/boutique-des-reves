@@ -2,7 +2,7 @@ import { createFileRoute, Outlet, Link, useNavigate, useRouterState } from "@tan
 import { useEffect } from "react";
 import { useStore } from "@/lib/store";
 import {
-  LayoutDashboard, Package, Users, CalendarDays, Wallet, UserCog, LogOut,
+  LayoutDashboard, Package, Users, CalendarDays, Wallet, UserCog, LogOut, FileText, BookMarked,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_app")({
@@ -14,6 +14,8 @@ const NAV = [
   { to: "/stock", label: "Stock", icon: Package },
   { to: "/clients", label: "Clients", icon: Users },
   { to: "/locations", label: "Locations", icon: CalendarDays },
+  { to: "/reservation", label: "Réservations", icon: BookMarked },
+  { to: "/contract", label: "Contrats", icon: FileText },
   { to: "/caisse", label: "Caisse", icon: Wallet, admin: true },
   { to: "/employes", label: "Employés", icon: UserCog, admin: true },
 ];

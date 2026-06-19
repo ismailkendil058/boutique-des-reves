@@ -1,15 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useStore, type Article, type Category, type ArticleStatus } from "@/lib/store";
-import { formatDA } from "@/lib/format";
-import { Drawer, Badge, EmptyState } from "@/components/ui-kit";
+import { useStore, type Article, type Category, type ArticleStatus, type Reservation } from "@/lib/store";
+import { formatDA, formatDate } from "@/lib/format";
+import { Drawer, Badge, EmptyState, Modal } from "@/components/ui-kit";
 import { Plus, MoreVertical, Package } from "lucide-react";
 
 export const Route = createFileRoute("/_app/stock")({
   component: StockPage,
 });
 
-const CATS: ("Tous" | Category)[] = ["Tous", "Tenues", "Bijoux", "Accessoires"];
+const CATS: ("Tous" | Category)[] = ["Tous", "Tenues", "Accessoires"];
 const STATUSES: ("Tous" | ArticleStatus)[] = ["Tous", "Disponible", "Loué", "En entretien"];
 
 function StockPage() {
@@ -17,12 +17,16 @@ function StockPage() {
   const addArticle = useStore((s) => s.addArticle);
   const updateArticle = useStore((s) => s.updateArticle);
   const deleteArticle = useStore((s) => s.deleteArticle);
+  const reservations = useStore((s) => s.reservations);
+  const clients = useStore((s) => s.clients);
 
   const [cat, setCat] = useState<typeof CATS[number]>("Tous");
   const [stat, setStat] = useState<typeof STATUSES[number]>("Tous");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<Article | null>(null);
   const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
 
   const filtered = articles.filter((a) => (cat === "Tous" || a.category === cat) && (stat === "Tous" || a.status === stat));
 
@@ -51,7 +55,11 @@ function StockPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {filtered.map((a) => (
-            <div key={a.id} className="card-surface" style={{ padding: 16 }}>
+            <div key={a.id} className="card-surface" style={{ padding: 16 }} onClick={() => {
+                const res = reservations.find(r => r.articleIds.includes(a.id));
+                setSelectedReservation(res || null);
+                setInfoOpen(true);
+              }}>
               <div
                 className="rounded-lg mb-3 flex items-center justify-center text-white"
                 style={{
@@ -72,20 +80,20 @@ function StockPage() {
                   </div>
                 </div>
                 <div className="relative">
-                  <button onClick={() => setMenuFor(menuFor === a.id ? null : a.id)} className="p-1 -mr-1" aria-label="Menu">
+                  <button onClick={(e) => { e.stopPropagation(); setMenuFor(menuFor === a.id ? null : a.id); }} className="p-1 -mr-1" aria-label="Menu">
                     <MoreVertical className="w-4 h-4" />
                   </button>
                   {menuFor === a.id && (
                     <div className="absolute right-0 top-7 z-10 bg-white border rounded-lg shadow-lg w-44 py-1" style={{ borderColor: "#E5E5E5" }}>
-                      <button onClick={() => openEdit(a)} className="w-full text-left px-3 py-2 text-sm hover:bg-[rgba(116,54,126,0.04)]">Modifier</button>
+                      <button onClick={(e) => { e.stopPropagation(); openEdit(a); }} className="w-full text-left px-3 py-2 text-sm hover:bg-[rgba(116,54,126,0.04)]">Modifier</button>
                       <button
-                        onClick={() => { updateArticle(a.id, { status: a.status === "En entretien" ? "Disponible" : "En entretien" }); setMenuFor(null); }}
+                        onClick={(e) => { e.stopPropagation(); updateArticle(a.id, { status: a.status === "En entretien" ? "Disponible" : "En entretien" }); setMenuFor(null); }}
                         className="w-full text-left px-3 py-2 text-sm hover:bg-[rgba(116,54,126,0.04)]"
                       >
                         {a.status === "En entretien" ? "Marquer disponible" : "Marquer indisponible"}
                       </button>
                       <button
-                        onClick={() => { if (confirm("Supprimer cet article ?")) deleteArticle(a.id); setMenuFor(null); }}
+                        onClick={(e) => { e.stopPropagation(); if (confirm("Supprimer cet article ?")) deleteArticle(a.id); setMenuFor(null); }}
                         className="w-full text-left px-3 py-2 text-sm hover:bg-[rgba(116,54,126,0.04)]"
                         style={{ color: "#C0392B" }}
                       >
@@ -113,6 +121,16 @@ function StockPage() {
           setDrawerOpen(false);
         }}
       />
+      <Modal open={infoOpen} onClose={() => setInfoOpen(false)} title={selectedReservation ? "Réservation" : "Disponibilité"}>
+        {selectedReservation ? (
+          <div className="space-y-4">
+            <div><strong>Client:</strong> {clients.find(c => c.id === selectedReservation.clientId)?.name ?? "Inconnu"}</div>
+            <div><strong>Période:</strong> {formatDate(selectedReservation.pickupDate)} → {formatDate(selectedReservation.returnDate)}</div>
+          </div>
+        ) : (
+          <div>Ce produit n'est pas réservé.</div>
+        )}
+      </Modal>
     </div>
   );
 }
@@ -183,7 +201,7 @@ function ArticleDrawerInner({ open, onClose, article, onSave }: {
         <div className="grid grid-cols-2 gap-3">
           <Field label="Catégorie">
             <select className="input-field" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as Category })}>
-              <option>Tenues</option><option>Bijoux</option><option>Accessoires</option>
+              <option>Tenues</option><option>Accessoires</option>
             </select>
           </Field>
           <Field label="État">

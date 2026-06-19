@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type Category = "Tenues" | "Bijoux" | "Accessoires";
+export type Category = "Tenues" | "Accessoires";
 export type ArticleStatus = "Disponible" | "Loué" | "En entretien";
 
 export interface Article {
@@ -67,14 +67,47 @@ interface AuthState {
   employeeName: string | null;
 }
 
+export interface SavedContract {
+  id: string;
+  locationId: string;
+  clientId: string;
+  clientName: string;
+  clientPhone: string;
+  articles: { name: string; price: number }[];
+  pickupDate: string;
+  returnDate: string;
+  total: number;
+  caution: number;
+  verse: number;
+  reste: number;
+  notes?: string;
+  savedAt: string;
+}
+
+export interface Reservation {
+  id: string;
+  clientId: string;
+  articleIds: string[];
+  articlePrices?: Record<string, number>;
+  pickupDate: string;
+  returnDate: string;
+  occasion: "Mariage" | "Fiançailles" | "Cérémonie" | "Anniversaire" | "Autre";
+  total: number;
+  caution: number;
+  notes?: string;
+  createdAt: string;
+}
+
 interface StoreState {
   auth: AuthState;
   articles: Article[];
   clients: Client[];
   locations: Location[];
   employees: Employee[];
+  reservations: Reservation[];
   pendingNewLocationClientId: string | null;
   pendingOpenLocationId: string | null;
+  savedContracts: SavedContract[];
   setPendingNewLocation: (id: string | null) => void;
   setPendingOpenLocation: (id: string | null) => void;
 
@@ -103,6 +136,14 @@ interface StoreState {
   addEmployee: (name: string, pin: string) => void;
   updateEmployeePin: (id: string, pin: string) => void;
   toggleEmployee: (id: string) => void;
+
+  saveContract: (locId: string) => void;
+  deleteSavedContract: (id: string) => void;
+  loadSavedContracts: () => void;
+
+  addReservation: (r: Omit<Reservation, "id" | "createdAt">) => Reservation;
+  deleteReservation: (id: string) => void;
+  validateReservation: (id: string, initialPayment: number) => void;
 }
 
 function uid() {
@@ -124,11 +165,11 @@ const seedArticles: Article[] = [
   { id: "a1", name: "Karakou brodé or", category: "Tenues", size: "M", color: "Noir/Or", price: 8000, caution: 15000, status: "Disponible", photo: PURPLES[0] },
   { id: "a2", name: "Caftan velours", category: "Tenues", size: "L", color: "Bordeaux", price: 6500, caution: 12000, status: "Loué", photo: PURPLES[1] },
   { id: "a3", name: "Robe constantinoise", category: "Tenues", size: "S", color: "Ivoire", price: 9000, caution: 20000, status: "Disponible", photo: PURPLES[2] },
-  { id: "a4", name: "Parure Lben argent", category: "Bijoux", color: "Argent", price: 3500, caution: 8000, status: "Disponible", photo: PURPLES[3] },
-  { id: "a5", name: "Diadème perles", category: "Bijoux", color: "Or rose", price: 2500, caution: 5000, status: "Disponible", photo: PURPLES[4] },
+  { id: "a4", name: "Parure Lben argent", category: "Accessoires", color: "Argent", price: 3500, caution: 8000, status: "Disponible", photo: PURPLES[3] },
+  { id: "a5", name: "Diadème perles", category: "Accessoires", color: "Or rose", price: 2500, caution: 5000, status: "Disponible", photo: PURPLES[4] },
   { id: "a6", name: "Chedda tlemcenienne", category: "Tenues", size: "M", color: "Doré", price: 12000, caution: 25000, status: "Loué", photo: PURPLES[0] },
   { id: "a7", name: "Ceinture brodée", category: "Accessoires", color: "Or", price: 1500, caution: 3000, status: "Disponible", photo: PURPLES[1] },
-  { id: "a8", name: "Khit Errouh collier", category: "Bijoux", color: "Or", price: 4000, caution: 10000, status: "En entretien", photo: PURPLES[2] },
+  { id: "a8", name: "Khit Errouh collier", category: "Accessoires", color: "Or", price: 4000, caution: 10000, status: "En entretien", photo: PURPLES[2] },
 ];
 
 const seedClients: Client[] = [
@@ -184,8 +225,10 @@ export const useStore = create<StoreState>((set, get) => ({
   clients: seedClients,
   locations: seedLocations,
   employees: seedEmployees,
+  reservations: [],
   pendingNewLocationClientId: null,
   pendingOpenLocationId: null,
+  savedContracts: [],
   setPendingNewLocation: (id) => set({ pendingNewLocationClientId: id }),
   setPendingOpenLocation: (id) => set({ pendingOpenLocationId: id }),
 
@@ -278,6 +321,85 @@ export const useStore = create<StoreState>((set, get) => ({
   addEmployee: (name, pin) => set((s) => ({ employees: [...s.employees, { id: uid(), name, pin, active: true }] })),
   updateEmployeePin: (id, pin) => set((s) => ({ employees: s.employees.map((e) => (e.id === id ? { ...e, pin } : e)) })),
   toggleEmployee: (id) => set((s) => ({ employees: s.employees.map((e) => (e.id === id ? { ...e, active: !e.active } : e)) })),
+
+  saveContract: (locId) => {
+    const loc = get().locations.find((l) => l.id === locId);
+    if (!loc) return;
+    const client = get().clients.find((c) => c.id === loc.clientId);
+    const articles = get().articles.filter((a) => loc.articleIds.includes(a.id)).map((a) => ({
+      name: a.name,
+      price: loc.articlePrices?.[a.id] ?? a.price
+    }));
+    const verse = locVerse(loc);
+    const reste = locReste(loc);
+    const saved: SavedContract = {
+      id: uid(),
+      locationId: loc.id,
+      clientId: loc.clientId,
+      clientName: client?.name ?? "Inconnu",
+      clientPhone: client?.phone ?? "",
+      articles,
+      pickupDate: loc.pickupDate,
+      returnDate: loc.returnDate,
+      total: loc.total,
+      caution: loc.caution,
+      verse,
+      reste,
+      notes: loc.notes,
+      savedAt: new Date().toISOString().slice(0, 10),
+    };
+    set((s) => {
+      const updated = [...s.savedContracts, saved];
+      if (typeof window !== "undefined") {
+        localStorage.setItem("saved_contracts", JSON.stringify(updated));
+      }
+      return { savedContracts: updated };
+    });
+  },
+  deleteSavedContract: (id) => set((s) => {
+    const updated = s.savedContracts.filter((x) => x.id !== id);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("saved_contracts", JSON.stringify(updated));
+    }
+    return { savedContracts: updated };
+  }),
+  loadSavedContracts: () => {
+    if (typeof window !== "undefined") {
+      const saved = JSON.parse(localStorage.getItem("saved_contracts") || "[]");
+      set({ savedContracts: saved });
+    }
+  },
+
+  addReservation: (r) => {
+    const reservation: Reservation = { ...r, id: uid(), createdAt: new Date().toISOString().slice(0, 10) };
+    set((s) => ({ reservations: [...s.reservations, reservation] }));
+    return reservation;
+  },
+  deleteReservation: (id) => set((s) => ({ reservations: s.reservations.filter((r) => r.id !== id) })),
+  validateReservation: (id, initialPayment) => {
+    const reservation = get().reservations.find((r) => r.id === id);
+    if (!reservation) return;
+    const base = {
+      id: uid(),
+      clientId: reservation.clientId,
+      articleIds: reservation.articleIds,
+      articlePrices: reservation.articlePrices,
+      pickupDate: reservation.pickupDate,
+      returnDate: reservation.returnDate,
+      occasion: reservation.occasion,
+      total: reservation.total,
+      caution: reservation.caution,
+      versements: initialPayment > 0 ? [{ id: uid(), date: new Date().toISOString().slice(0, 10), amount: initialPayment, type: "Versement" as const }] : [],
+      notes: reservation.notes,
+      createdAt: new Date().toISOString().slice(0, 10),
+    };
+    const loc: Location = { ...base, status: computeStatus(base) };
+    set((s) => ({
+      locations: [...s.locations, loc],
+      reservations: s.reservations.filter((r) => r.id !== id),
+      articles: s.articles.map((a) => (reservation.articleIds.includes(a.id) ? { ...a, status: "Loué" } : a)),
+    }));
+  },
 }));
 
 // Helpers

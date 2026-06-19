@@ -31,11 +31,11 @@ function Dashboard() {
     months.push({ label: d.toLocaleDateString("fr-FR", { month: "short" }), count });
   }
 
-  const byCategory = ["Tenues", "Bijoux", "Accessoires"].map((cat) => ({
+  const byCategory = ["Tenues", "Accessoires"].map((cat) => ({
     name: cat,
     value: articles.filter((a) => a.category === cat).length,
   }));
-  const COLORS = ["#74367E", "#B884C0", "#E5E5E5"];
+  const COLORS = ["#74367E", "#E5E5E5"];
 
   return (
     <div className="space-y-8">
