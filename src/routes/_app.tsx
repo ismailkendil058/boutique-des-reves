@@ -142,13 +142,13 @@ function AppLayout() {
 
       <main className="flex-1 min-w-0">
         {/* Mobile header */}
-        <header className="lg:hidden flex items-center px-3 py-1.5 border-b mt-8" style={{ borderColor: "#E5E5E5" }}>
-          <button onClick={openMobile} aria-label="Menu" className="mr-3" style={{ color: "#1A1A1A" }}>
-            <Menu className="w-5 h-5" />
+        <header className="lg:hidden flex items-center px-4 py-3 border-b mt-8" style={{ borderColor: "#E5E5E5" }}>
+          <button onClick={openMobile} aria-label="Menu" className="mr-4 p-1" style={{ color: "#1A1A1A" }}>
+            <Menu className="w-6 h-6" />
           </button>
-          <div className="brand-name flex-1" style={{ fontSize: 18 }}>Boutique des Rêves</div>
-          <button onClick={handleLogout} aria-label="Déconnexion" style={{ color: "#74367E" }}>
-            <LogOut className="w-5 h-5" />
+          <div className="brand-name flex-1" style={{ fontSize: 22 }}>Boutique des Rêves</div>
+          <button onClick={handleLogout} aria-label="Déconnexion" className="p-1" style={{ color: "#74367E" }}>
+            <LogOut className="w-6 h-6" />
           </button>
         </header>
         <div className="p-6 lg:p-8 max-w-[1200px] mx-auto pb-6 lg:pb-8">
