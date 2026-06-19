@@ -123,12 +123,9 @@ function NewReservationModal({ open, onClose }: { open: boolean; onClose: () => 
   const [returnDate, setReturnDate] = useState(todayStr());
   const [occasion, setOccasion] = useState<"Mariage" | "Fiançailles" | "Cérémonie" | "Anniversaire" | "Autre">("Mariage");
   const [notes, setNotes] = useState("");
-  const [caution, setCaution] = useState(0);
   const [err, setErr] = useState("");
 
   const total = articles.filter((a) => selArticles.includes(a.id)).reduce((s, a) => s + (customPrices[a.id] ?? a.price), 0);
-  const cautionAuto = articles.filter((a) => selArticles.includes(a.id)).reduce((s, a) => s + a.caution, 0);
-  const finalCaution = caution || cautionAuto;
 
   const submit = async () => {
     if (!clientForm.name.trim()) { setErr("Nom du client requis"); return; }
@@ -148,7 +145,7 @@ function NewReservationModal({ open, onClose }: { open: boolean; onClose: () => 
         ? Object.fromEntries(selArticles.map((id) => [id, customPrices[id] ?? articles.find((a) => a.id === id)!.price]))
         : undefined;
 
-      await addReservation({ clientId: client.id, articleIds: selArticles, articlePrices, pickupDate, returnDate, occasion, total, caution: finalCaution, notes });
+      await addReservation({ clientId: client.id, articleIds: selArticles, articlePrices, pickupDate, returnDate, occasion, total, caution: 0, notes });
       toast.success("Réservation créée !");
       onClose();
     } catch (e) {
@@ -244,9 +241,6 @@ function NewReservationModal({ open, onClose }: { open: boolean; onClose: () => 
               <span style={{ color: "rgba(26,26,26,0.6)" }}>Total calculé</span>
               <span style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 22, color: "#74367E" }}>{formatDA(total)}</span>
             </div>
-            <FieldLabel label={`Caution (auto : ${formatDA(cautionAuto)})`}>
-              <input type="number" className="input-field" value={caution || ""} placeholder={cautionAuto.toString()} onChange={(e) => setCaution(+e.target.value)} />
-            </FieldLabel>
           </div>
         </Section>
 
@@ -337,13 +331,9 @@ function ReservationDetail({ reservation, onClose }: { reservation: Reservation;
         {/* Payment info */}
         <div className="card-surface" style={{ padding: 20 }}>
           <div className="section-label mb-3">Récapitulatif</div>
-          <div className="flex items-center justify-between text-sm mb-2">
+          <div className="flex items-center justify-between text-sm">
             <span>Total</span>
             <span style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 20 }}>{formatDA(reservation.total)}</span>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span style={{ color: "rgba(26,26,26,0.6)" }}>Caution</span>
-            <span>{formatDA(reservation.caution)}</span>
           </div>
           {reservation.notes && (
             <div className="mt-3 text-sm pt-3 border-t" style={{ borderColor: "#E5E5E5", color: "rgba(26,26,26,0.65)" }}>

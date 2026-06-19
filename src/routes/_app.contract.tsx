@@ -42,7 +42,6 @@ function ContractPage() {
                 <Th>Articles</Th>
                 <Th>Total</Th>
                 <Th>Reste</Th>
-                <Th>Caution</Th>
                 <Th style={{ textAlign: "right" }}>Actions</Th>
               </tr>
             </thead>
@@ -57,7 +56,6 @@ function ContractPage() {
                   <Td>{c.articles.map((a) => a.name).join(", ")}</Td>
                   <Td>{formatDA(c.total)}</Td>
                   <Td style={{ color: c.reste > 0 ? "#74367E" : "rgba(26,26,26,0.45)", fontWeight: c.reste > 0 ? 500 : 400 }}>{formatDA(c.reste)}</Td>
-                  <Td>{formatDA(c.caution)}</Td>
                   <Td style={{ textAlign: "right" }}>
                     <div className="flex items-center justify-end gap-2">
                       <button
@@ -184,10 +182,6 @@ function ContractPage() {
                   <span>Reste à payer :</span>
                   <strong>{formatDA(selectedContract.reste)}</strong>
                 </div>
-                <div className="flex justify-between">
-                  <span>Caution :</span>
-                  <span>{formatDA(selectedContract.caution)}</span>
-                </div>
               </div>
             </div>
           </div>
@@ -247,7 +241,6 @@ function PrintSavedContract({ contract }: { contract: SavedContract }) {
         <div>Total : <strong>{formatDA(contract.total)}</strong></div>
         <div>Versé : {formatDA(contract.verse)}</div>
         <div>Reste : <strong style={{ color: "#74367E" }}>{formatDA(contract.reste)}</strong></div>
-        <div>Caution : {formatDA(contract.caution)}</div>
       </div>
 
       <div style={{ marginTop: 32 }}>

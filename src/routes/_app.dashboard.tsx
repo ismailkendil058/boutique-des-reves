@@ -15,11 +15,6 @@ function Dashboard() {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const activeLocs = locations.filter((l) => l.status === "En cours" || l.status === "En retard");
-  const monthRevenue = locations.flatMap((l) => l.versements).filter((v) => new Date(v.date) >= monthStart).reduce((s, v) => s + v.amount, 0);
-  const totalReste = locations.reduce((s, l) => s + locReste(l), 0);
-  const available = articles.filter((a) => a.status === "Disponible").length;
-
   const overdue = locations.filter((l) => l.status === "En retard");
 
   // Locations per month — last 6 months
@@ -31,11 +26,25 @@ function Dashboard() {
     months.push({ label: d.toLocaleDateString("fr-FR", { month: "short" }), count });
   }
 
-  const byCategory = ["Tenues", "Accessoires"].map((cat) => ({
-    name: cat,
-    value: articles.filter((a) => a.category === cat).length,
-  }));
-  const COLORS = ["#74367E", "#E5E5E5"];
+  // Calculate top 5 most located products
+  const articleCounts = locations.reduce((acc, l) => {
+    (l.articleIds ?? []).forEach((aid) => {
+      acc[aid] = (acc[aid] || 0) + 1;
+    });
+    return acc;
+  }, {} as Record<string, number>);
+
+  const topProducts = Object.entries(articleCounts)
+    .map(([id, count]) => {
+      const art = articles.find((a) => a.id === id);
+      return {
+        id,
+        name: art?.name ?? "Article inconnu",
+        count,
+      };
+    })
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
 
   return (
     <div className="space-y-8">
@@ -46,12 +55,7 @@ function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPI label="Locations actives" value={activeLocs.length.toString()} />
-        <KPI label="CA du mois" value={formatDA(monthRevenue)} />
-        <KPI label="Restes à percevoir" value={formatDA(totalReste)} />
-        <KPI label="Articles disponibles" value={available.toString()} />
-      </div>
+
 
       <div className="grid lg:grid-cols-2 gap-6">
         <div className="card-surface">
@@ -67,25 +71,28 @@ function Dashboard() {
             </ResponsiveContainer>
           </div>
         </div>
-        <div className="card-surface">
-          <div className="section-label mb-4">Répartition des articles</div>
-          <div style={{ height: 240 }}>
-            <ResponsiveContainer>
-              <PieChart>
-                <Pie data={byCategory} dataKey="value" nameKey="name" innerRadius={50} outerRadius={90}>
-                  {byCategory.map((_, i) => <Cell key={i} fill={COLORS[i]} />)}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="flex justify-center gap-4 mt-2 text-xs">
-            {byCategory.map((c, i) => (
-              <span key={c.name} className="flex items-center gap-1.5">
-                <span className="inline-block w-3 h-3 rounded-sm" style={{ background: COLORS[i] }} />
-                {c.name} ({c.value})
-              </span>
-            ))}
+        <div className="card-surface flex flex-col justify-between" style={{ minHeight: 300 }}>
+          <div className="section-label mb-4">Top 5 des articles les plus loués</div>
+          <div className="space-y-4 flex-1 flex flex-col justify-center">
+            {topProducts.length === 0 ? (
+              <div className="text-sm text-center py-8" style={{ color: "rgba(26,26,26,0.5)" }}>Aucune location enregistrée</div>
+            ) : (
+              topProducts.map((p, idx) => {
+                const maxCount = topProducts[0]?.count || 1;
+                const pct = Math.round((p.count / maxCount) * 100);
+                return (
+                  <div key={p.id} className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span className="font-medium">{idx + 1}. {p.name}</span>
+                      <span className="font-semibold" style={{ color: "#74367E" }}>{p.count} locations</span>
+                    </div>
+                    <div className="w-full bg-[rgba(26,26,26,0.06)] rounded-full h-2">
+                      <div className="h-2 rounded-full" style={{ width: `${pct}%`, background: "#74367E" }} />
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       </div>
@@ -126,13 +133,4 @@ function Dashboard() {
   );
 }
 
-function KPI({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="card-surface">
-      <div style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 32, color: "#74367E", lineHeight: 1.1 }}>
-        {value}
-      </div>
-      <div className="text-xs uppercase tracking-wider mt-2" style={{ color: "rgba(26,26,26,0.55)" }}>{label}</div>
-    </div>
-  );
-}
+

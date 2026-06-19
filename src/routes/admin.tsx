@@ -22,9 +22,10 @@ function AdminLogin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role]);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!loginAdmin(pwd)) { setErr(true); setTimeout(() => setErr(false), 1200); }
+    const ok = await loginAdmin(pwd);
+    if (!ok) { setErr(true); setTimeout(() => setErr(false), 1200); }
   };
 
   return (

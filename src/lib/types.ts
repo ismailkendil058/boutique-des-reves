@@ -42,34 +42,54 @@ export interface Versement {
 
 export interface Location {
   id: string;
-  clientId?: string;
-  articleIds?: string[];
+  clientId: string;
+  articleIds: string[];
   articlePrices?: Record<string, number>;
-  total?: number;
-  versements?: Versement[];
-  status?: string;
-  createdAt?: string;
-  pickupDate?: string;
-  returnDate?: string;
+  total: number;
+  versements: Versement[];
+  status: string;
+  createdAt: string;
+  pickupDate: string;
+  returnDate: string;
   actualReturnDate?: string;
+  caution: number;
   cautionReturned?: boolean;
   notes?: string;
+  occasion: string;
 }
 
 export interface Reservation {
   id: string;
-  clientId?: string;
-  articleIds?: string[];
+  clientId: string;
+  articleIds: string[];
   articlePrices?: Record<string, number>;
-  pickupDate?: string;
-  returnDate?: string;
-  occasion?: string;
-  total?: number;
-  caution?: number;
+  pickupDate: string;
+  returnDate: string;
+  occasion: string;
+  total: number;
+  caution: number;
   notes?: string;
+  createdAt: string;
+}
+
+export interface SavedContractArticle {
+  name: string;
+  price: number;
 }
 
 export interface SavedContract {
   id: string;
-  // add fields as needed
+  locationId: string;
+  clientId: string;
+  clientName: string;
+  clientPhone: string;
+  pickupDate: string;
+  returnDate: string;
+  total: number;
+  caution: number;
+  verse: number;
+  reste: number;
+  notes?: string;
+  savedAt: string;
+  articles: SavedContractArticle[];
 }

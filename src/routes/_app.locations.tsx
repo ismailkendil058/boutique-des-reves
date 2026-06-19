@@ -166,13 +166,10 @@ function NewLocationModal({ open, onClose }: { open: boolean; onClose: () => voi
   const [returnDate, setReturnDate] = useState(todayStr());
   const [occasion, setOccasion] = useState<"Mariage" | "Fiançailles" | "Cérémonie" | "Anniversaire" | "Autre">("Mariage");
   const [notes, setNotes] = useState("");
-  const [caution, setCaution] = useState(0);
   const [initialPayment, setInitialPayment] = useState(0);
   const [err, setErr] = useState("");
 
   const total = articles.filter((a) => selArticles.includes(a.id)).reduce((s, a) => s + (customPrices[a.id] ?? a.price), 0);
-  const cautionAuto = articles.filter((a) => selArticles.includes(a.id)).reduce((s, a) => s + a.caution, 0);
-  const finalCaution = caution || cautionAuto;
   const reste = Math.max(0, total - initialPayment);
 
   const submit = async () => {
@@ -194,7 +191,7 @@ function NewLocationModal({ open, onClose }: { open: boolean; onClose: () => voi
       const articlePrices = hasCustomPrices ? Object.fromEntries(selArticles.map((id) => [id, customPrices[id] ?? articles.find((a) => a.id === id)!.price])) : undefined;
       await addLocation({
         clientId: client.id, articleIds: selArticles, articlePrices, pickupDate, returnDate, occasion,
-        total, caution: finalCaution, notes, initialPayment,
+        total, caution: 0, notes, initialPayment,
       });
       onClose();
     } catch (e) {
@@ -299,10 +296,7 @@ function NewLocationModal({ open, onClose }: { open: boolean; onClose: () => voi
               <span style={{ color: "rgba(26,26,26,0.6)" }}>Total calculé</span>
               <span style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 22, color: "#74367E" }}>{formatDA(total)}</span>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <FieldLabel label={`Caution (auto : ${formatDA(cautionAuto)})`}>
-                <input type="number" className="input-field" value={caution || ""} placeholder={cautionAuto.toString()} onChange={(e) => setCaution(+e.target.value)} />
-              </FieldLabel>
+            <div className="grid grid-cols-1 gap-3">
               <FieldLabel label="Versement initial">
                 <input type="number" className="input-field" value={initialPayment || ""} onChange={(e) => setInitialPayment(+e.target.value)} />
               </FieldLabel>
@@ -410,7 +404,6 @@ function LocationDetail({ location, onClose }: { location: Location; onClose: ()
   const addVersement = useStore((s) => s.addVersement);
   const deleteVersement = useStore((s) => s.deleteVersement);
   const markReturned = useStore((s) => s.markReturned);
-  const markCautionReturned = useStore((s) => s.markCautionReturned);
   const saveContract = useStore((s) => s.saveContract);
   const isAdmin = useStore((s) => s.auth.role === "admin");
 
@@ -491,13 +484,6 @@ function LocationDetail({ location, onClose }: { location: Location; onClose: ()
           <div className="flex items-center justify-between text-sm pt-3 border-t" style={{ borderColor: "#E5E5E5" }}>
             <span>Reste à payer</span>
             <span style={{ color: "#74367E", fontWeight: 600 }}>{formatDA(reste)}</span>
-          </div>
-          <div className="flex items-center justify-between text-sm pt-2">
-            <span style={{ color: "rgba(26,26,26,0.6)" }}>Caution : {formatDA(location.caution)}</span>
-            {location.status === "Rendue" && !location.cautionReturned && (
-              <button onClick={() => markCautionReturned(location.id)} className="btn-ghost" style={{ padding: "4px 12px", fontSize: 12 }}>Caution rendue</button>
-            )}
-            {location.cautionReturned && <Badge status="Soldé" />}
           </div>
           <button onClick={() => setPayOpen(true)} className="btn-primary w-full justify-center mt-4" disabled={reste === 0}>
             <Plus className="w-4 h-4" /> Enregistrer un versement
@@ -589,7 +575,6 @@ function PrintContract({ location }: { location: Location }) {
         <div>Total : <strong>{formatDA(location.total)}</strong></div>
         <div>Versé : {formatDA(verse)}</div>
         <div>Reste : <strong style={{ color: "#74367E" }}>{formatDA(reste)}</strong></div>
-        <div>Caution : {formatDA(location.caution)}</div>
       </div>
 
       <div style={{ marginTop: 32 }}>

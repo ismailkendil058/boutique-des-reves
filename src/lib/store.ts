@@ -3,8 +3,8 @@ import { create } from "zustand";
 import api from "./api";
 
 /** Types imported from the API layer */
-import type { Article, Client, Employee, Location, Reservation, SavedContract, Versement } from "./types";
-export type { Article, Client, Employee, Location, Reservation, SavedContract, Versement };
+import type { Article, Client, Employee, Location, Reservation, SavedContract, Versement, Category, ArticleStatus } from "./types";
+export type { Article, Client, Employee, Location, Reservation, SavedContract, Versement, Category, ArticleStatus };
 
 /** Calculate remaining amount for a location */
 export const locReste = (loc: Location): number => {
@@ -35,6 +35,8 @@ export interface StoreState {
   // Auth actions
   loginEmployee: (id: string, pin: string) => Promise<boolean>;
   loginAdmin: (password: string) => Promise<boolean>;
+  loginEmployeeDemo: () => void;
+  loginAdminDemo: () => void;
   logout: () => void;
   // Data loading
   loadAllData: () => Promise<void>;
@@ -56,7 +58,7 @@ export interface StoreState {
   updateEmployeePin: (id: string, pin: string) => Promise<void>;
   toggleEmployee: (id: string) => Promise<void>;
   // Saved contracts
-  saveContract: (contract: Omit<SavedContract, "id" | "savedAt">) => Promise<void>;
+  saveContract: (locId: string) => Promise<void>;
   deleteSavedContract: (id: string) => Promise<void>;
   loadSavedContracts: () => Promise<void>;
   // Reservations
@@ -100,6 +102,14 @@ export const useStore = create<StoreState>((set, get) => ({
       return true;
     }
     return false;
+  },
+  loginEmployeeDemo: () => {
+    const activeEmps = get().employees.filter((e) => e.active);
+    const empName = activeEmps[0]?.name ?? "Employé Démo";
+    set({ auth: { role: "employee", employeeName: empName } });
+  },
+  loginAdminDemo: () => {
+    set({ auth: { role: "admin", employeeName: "Administratrice" } });
   },
   logout: () => set({ auth: { role: null, employeeName: null } }),
 
@@ -206,8 +216,30 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   // ---------- Saved contracts ----------
-  saveContract: async (contract) => {
-    const saved = await api.saveContract(contract);
+  saveContract: async (locId) => {
+    const loc = get().locations.find((l) => l.id === locId);
+    if (!loc) return;
+    const client = get().clients.find((c) => c.id === loc.clientId);
+    const articles = get().articles.filter((a) => loc.articleIds.includes(a.id));
+    const verse = locVerse(loc);
+    const reste = locReste(loc);
+
+    const payload = {
+      locationId: loc.id,
+      clientId: loc.clientId,
+      clientName: client?.name ?? "Inconnu",
+      clientPhone: client?.phone ?? "",
+      pickupDate: loc.pickupDate,
+      returnDate: loc.returnDate,
+      total: loc.total,
+      caution: 0,
+      verse,
+      reste,
+      notes: loc.notes,
+      articles: articles.map((a) => ({ name: a.name, price: loc.articlePrices?.[a.id] ?? a.price })),
+    };
+
+    const saved = await api.saveContract(payload as any);
     set((s) => ({ savedContracts: [...s.savedContracts, saved] }));
   },
   deleteSavedContract: async (id) => {
@@ -239,7 +271,7 @@ export const useStore = create<StoreState>((set, get) => ({
       returnDate: reservation.returnDate,
       occasion: reservation.occasion,
       total: reservation.total,
-      caution: reservation.caution,
+      caution: 0,
       initialPayment,
       versements: [],
       notes: reservation.notes,

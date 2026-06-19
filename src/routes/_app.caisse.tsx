@@ -8,23 +8,56 @@ export const Route = createFileRoute("/_app/caisse")({
   component: CaissePage,
 });
 
-type Range = "today" | "week" | "month" | "all";
+const todayStr = () => {
+  const d = new Date();
+  return d.toISOString().slice(0, 10);
+};
+
+const thisMonthStr = () => {
+  const d = new Date();
+  return d.toISOString().slice(0, 7); // "YYYY-MM"
+};
+
+const firstDayOfThisMonthStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-01`;
+};
 
 function CaissePage() {
   const locations = useStore((s) => s.locations);
   const clients = useStore((s) => s.clients);
   const articles = useStore((s) => s.articles);
-  const [range, setRange] = useState<Range>("month");
+
+  const [filterMode, setFilterMode] = useState<"day" | "month" | "period">("month");
+  const [selectedDay, setSelectedDay] = useState(todayStr());
+  const [selectedMonth, setSelectedMonth] = useState(thisMonthStr());
+  const [startDate, setStartDate] = useState(firstDayOfThisMonthStr());
+  const [endDate, setEndDate] = useState(todayStr());
 
   const { start, end } = useMemo(() => {
-    const now = new Date();
-    const end = new Date(); end.setHours(23, 59, 59, 999);
-    let start = new Date(0);
-    if (range === "today") { start = new Date(now); start.setHours(0,0,0,0); }
-    else if (range === "week") { start = new Date(now); start.setDate(now.getDate() - 7); }
-    else if (range === "month") { start = new Date(now.getFullYear(), now.getMonth(), 1); }
-    return { start, end };
-  }, [range]);
+    try {
+      if (filterMode === "day" && selectedDay) {
+        const start = new Date(selectedDay + "T00:00:00");
+        const end = new Date(selectedDay + "T23:59:59.999");
+        if (!isNaN(start.getTime()) && !isNaN(end.getTime())) return { start, end };
+      } else if (filterMode === "month" && selectedMonth) {
+        const parts = selectedMonth.split("-").map(Number);
+        if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+          const [year, month] = parts;
+          const start = new Date(year, month - 1, 1, 0, 0, 0, 0);
+          const end = new Date(year, month, 0, 23, 59, 59, 999);
+          return { start, end };
+        }
+      } else if (filterMode === "period" && startDate && endDate) {
+        const start = new Date(startDate + "T00:00:00");
+        const end = new Date(endDate + "T23:59:59.999");
+        if (!isNaN(start.getTime()) && !isNaN(end.getTime())) return { start, end };
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return { start: new Date(0), end: new Date(9999, 11, 31) };
+  }, [filterMode, selectedDay, selectedMonth, startDate, endDate]);
 
   const allVersements = useMemo(() => {
     return locations.flatMap((l) => l.versements.map((v) => ({ ...v, location: l })))
@@ -37,37 +70,68 @@ function CaissePage() {
   const encaisseToday = locations.flatMap((l) => l.versements).filter((v) => new Date(v.date) >= todayStart).reduce((s, v) => s + v.amount, 0);
   const encaisseMonth = locations.flatMap((l) => l.versements).filter((v) => new Date(v.date) >= monthStart).reduce((s, v) => s + v.amount, 0);
   const restesPercevoir = locations.reduce((s, l) => s + locReste(l), 0);
-  const cautionsEnCours = locations.filter((l) => l.status !== "Rendue" || !l.cautionReturned).reduce((s, l) => s + l.caution, 0);
-
   const totalRange = allVersements.reduce((s, v) => s + v.amount, 0);
 
   return (
     <div className="space-y-6">
       <h1 className="page-title">Caisse</h1>
 
-      <div className="flex gap-2 flex-wrap">
-        {(["today","week","month","all"] as Range[]).map((r) => {
-          const labels = { today: "Aujourd'hui", week: "Cette semaine", month: "Ce mois", all: "Tout" };
-          const active = r === range;
-          return (
-            <button key={r} onClick={() => setRange(r)} className="pill"
-              style={{
-                background: active ? "#74367E" : "transparent",
-                color: active ? "white" : "rgba(26,26,26,0.6)",
-                border: active ? "1px solid #74367E" : "1px solid #E5E5E5",
-                padding: "6px 14px", fontSize: 13,
-              }}>
-              {labels[r]}
-            </button>
-          );
-        })}
+      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between pb-2 border-b" style={{ borderColor: "#E5E5E5" }}>
+        {/* Mode Selector */}
+        <div className="flex gap-2">
+          {([
+            { id: "day", label: "Par Jour" },
+            { id: "month", label: "Par Mois" },
+            { id: "period", label: "Par Période" }
+          ] as const).map((m) => {
+            const active = filterMode === m.id;
+            return (
+              <button key={m.id} onClick={() => setFilterMode(m.id)} className="pill cursor-pointer"
+                style={{
+                  background: active ? "#74367E" : "transparent",
+                  color: active ? "white" : "rgba(26,26,26,0.6)",
+                  border: active ? "1px solid #74367E" : "1px solid #E5E5E5",
+                  padding: "6px 14px", fontSize: 13,
+                }}>
+                {m.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Filter Inputs depending on Mode */}
+        <div className="flex gap-3 items-center w-full md:w-auto">
+          {filterMode === "day" && (
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <span className="text-xs font-semibold uppercase tracking-wider text-[rgba(26,26,26,0.55)]">Date :</span>
+              <input type="date" className="input-field max-w-[200px]" value={selectedDay} onChange={(e) => setSelectedDay(e.target.value)} />
+            </div>
+          )}
+          {filterMode === "month" && (
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <span className="text-xs font-semibold uppercase tracking-wider text-[rgba(26,26,26,0.55)]">Mois :</span>
+              <input type="month" className="input-field max-w-[200px]" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} />
+            </div>
+          )}
+          {filterMode === "period" && (
+            <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center w-full md:w-auto">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-[rgba(26,26,26,0.55)]">Du :</span>
+                <input type="date" className="input-field max-w-[160px]" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-[rgba(26,26,26,0.55)]">Au :</span>
+                <input type="date" className="input-field max-w-[160px]" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Stat label="Encaissé aujourd'hui" value={formatDA(encaisseToday)} />
         <Stat label="Encaissé ce mois" value={formatDA(encaisseMonth)} />
         <Stat label="Restes à percevoir" value={formatDA(restesPercevoir)} />
-        <Stat label="Cautions en cours" value={formatDA(cautionsEnCours)} />
       </div>
 
       <div className="card-surface" style={{ padding: 0 }}>

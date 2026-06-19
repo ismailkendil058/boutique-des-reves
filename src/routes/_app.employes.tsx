@@ -29,14 +29,17 @@ function EmployeesPage() {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ borderBottom: "2px solid #E5E5E5", background: "#FAFAFA" }}>
-              <Th>Nom</Th><Th>PIN</Th><Th>Statut</Th><Th>Actions</Th>
+              <Th style={{ width: "40%" }}>Nom</Th>
+              <Th style={{ width: "20%" }}>PIN</Th>
+              <Th style={{ width: "20%" }}>Statut</Th>
+              <Th style={{ width: "20%", textAlign: "right" }}>Actions</Th>
             </tr>
           </thead>
           <tbody>
             {employees.map((e) => (
               <tr key={e.id} style={{ borderBottom: "1px solid #E5E5E5" }}>
                 <Td>{e.name}</Td>
-                <Td>****</Td>
+                <Td style={{ letterSpacing: "0.15em" }}>••••</Td>
                 <Td>
                   <span className="pill" style={{
                     background: e.active ? "rgba(116,54,126,0.10)" : "#E5E5E5",
@@ -45,10 +48,10 @@ function EmployeesPage() {
                     {e.active ? "Actif" : "Désactivé"}
                   </span>
                 </Td>
-                <Td>
-                  <div className="flex gap-3 text-sm">
-                    <button onClick={() => setEditingPinFor(e.id)} style={{ color: "#74367E" }}>Modifier le PIN</button>
-                    <button onClick={() => toggleEmployee(e.id)} style={{ color: "rgba(26,26,26,0.6)" }}>{e.active ? "Désactiver" : "Activer"}</button>
+                <Td style={{ textAlign: "right" }}>
+                  <div className="flex gap-4 justify-end text-sm">
+                    <button onClick={() => setEditingPinFor(e.id)} className="cursor-pointer font-medium hover:underline" style={{ color: "#74367E" }}>Modifier le PIN</button>
+                    <button onClick={() => toggleEmployee(e.id)} className="cursor-pointer hover:underline" style={{ color: "rgba(26,26,26,0.6)" }}>{e.active ? "Désactiver" : "Activer"}</button>
                   </div>
                 </Td>
               </tr>

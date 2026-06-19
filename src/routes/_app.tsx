@@ -30,10 +30,14 @@ function AppLayout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth.role]);
 
-  // Load all data from Supabase after authentication
+  // Load all data from Supabase after authentication + auto-refresh every 5s
   useEffect(() => {
     if (auth.role) {
       useStore.getState().loadAllData();
+      const interval = setInterval(() => {
+        useStore.getState().loadAllData();
+      }, 5000);
+      return () => clearInterval(interval);
     }
   }, [auth.role]);
 

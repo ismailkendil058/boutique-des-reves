@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { supabase } from "@/lib/supabaseClient";
 import { useState } from "react";
 import { useStore, type Article, type Category, type ArticleStatus, type Reservation } from "@/lib/store";
 import { formatDA, formatDate } from "@/lib/format";
@@ -28,7 +29,7 @@ function StockPage() {
   const [infoOpen, setInfoOpen] = useState(false);
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
 
-  const filtered = articles.filter((a) => (cat === "Tous" || a.category === cat) && (stat === "Tous" || a.status === stat));
+  const filtered = articles.filter((a) => a && (cat === "Tous" || a.category === cat) && (stat === "Tous" || a.status === stat));
 
   const openCreate = () => { setEditing(null); setDrawerOpen(true); };
   const openEdit = (a: Article) => { setEditing(a); setDrawerOpen(true); setMenuFor(null); };
@@ -64,13 +65,15 @@ function StockPage() {
                 className="rounded-lg mb-3 flex items-center justify-center text-white"
                 style={{
                   aspectRatio: "4/3",
-                  background: a.photo ?? "#74367E",
+                  background: a.photo?.startsWith("http")
+                    ? `url(${a.photo}) center/cover no-repeat`
+                    : (a.photo ?? "#74367E"),
                   fontFamily: "Cormorant Garamond, serif",
                   fontStyle: "italic",
                   fontSize: 32,
                 }}
               >
-                {a.name[0]}
+                {!a.photo?.startsWith("http") && a.name[0]}
               </div>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
@@ -104,7 +107,6 @@ function StockPage() {
                 </div>
               </div>
               <div className="mt-3" style={{ fontSize: 16, fontWeight: 500, color: "#74367E" }}>{formatDA(a.price)}</div>
-              <div className="text-xs mt-0.5" style={{ color: "rgba(26,26,26,0.55)" }}>Caution : {formatDA(a.caution)}</div>
               <div className="mt-3 flex justify-end"><Badge status={a.status} /></div>
             </div>
           ))}
@@ -174,13 +176,32 @@ function ArticleDrawerInner({ open, onClose, article, onSave }: {
   onSave: (data: Omit<Article, "id">) => void;
 }) {
   const PURPLES = ["#74367E", "#9B5BA5", "#B884C0", "#D4B0D9", "#5E2A66"];
-  const [form, setForm] = useState<Omit<Article, "id">>(() => article ?? {
-    name: "", category: "Tenues" as Category, size: "", color: "", price: 0, caution: 0,
+  const [form, setForm] = useState<any>(() => article ?? {
+    name: "", category: "Tenues" as Category, size: "", color: "", price: "", caution: 0,
     status: "Disponible" as ArticleStatus, notes: "",
     photo: PURPLES[Math.floor(Math.random() * PURPLES.length)],
   });
 
-
+  async function compressImage(file: File): Promise<Blob> {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const MAX_WIDTH = 800;
+          const scaleSize = MAX_WIDTH / img.width;
+          canvas.width = MAX_WIDTH;
+          canvas.height = img.height * scaleSize;
+          const ctx = canvas.getContext("2d");
+          ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob((blob) => resolve(blob!), "image/jpeg", 0.7);
+        };
+      };
+    });
+  }
 
   return (
     <Drawer
@@ -190,7 +211,33 @@ function ArticleDrawerInner({ open, onClose, article, onSave }: {
       footer={
         <>
           <button onClick={onClose} className="btn-danger">Annuler</button>
-          <button onClick={() => onSave(form)} className="btn-primary">Enregistrer</button>
+          <button
+            onClick={async () => {
+              if ((form as any).__newImageFile) {
+                const file: File = (form as any).__newImageFile;
+                const compressed = await compressImage(file);
+                const filePath = `article-${Date.now()}-${file.name.replace(/[^a-z0-9.]/gi, '_')}`;
+                const { error: uploadError } = await supabase.storage
+                  .from('product-images')
+                  .upload(filePath, compressed);
+                if (uploadError) {
+                  console.error('Image upload failed', uploadError);
+                  alert('Failed to upload image');
+                  return;
+                }
+                const { data } = supabase.storage.from('product-images').getPublicUrl(filePath);
+                form.photo = data.publicUrl;
+              }
+              const { __newImageFile, ...cleanForm } = form as any;
+              // Convert numeric fields: empty string → 0, otherwise parse to number
+              cleanForm.price = cleanForm.price === "" || cleanForm.price == null ? 0 : Number(cleanForm.price);
+              cleanForm.caution = 0;
+              onSave(cleanForm);
+            }}
+            className="btn-primary"
+          >
+            Enregistrer
+          </button>
         </>
       }
     >
@@ -204,23 +251,27 @@ function ArticleDrawerInner({ open, onClose, article, onSave }: {
               <option>Tenues</option><option>Accessoires</option>
             </select>
           </Field>
-          <Field label="État">
-            <select className="input-field" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as ArticleStatus })}>
-              <option>Disponible</option><option>Loué</option><option>En entretien</option>
-            </select>
+          <Field label="Image">
+            <input
+              type="file"
+              accept="image/*"
+              className="input-field"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  setForm((prev: any) => ({ ...prev, __newImageFile: file }));
+                }
+              }}
+            />
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Taille"><input className="input-field" value={form.size ?? ""} onChange={(e) => setForm({ ...form, size: e.target.value })} /></Field>
           <Field label="Couleur"><input className="input-field" value={form.color ?? ""} onChange={(e) => setForm({ ...form, color: e.target.value })} /></Field>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Prix location (DA)"><input type="number" className="input-field" value={form.price} onChange={(e) => setForm({ ...form, price: +e.target.value })} /></Field>
-          <Field label="Caution (DA)"><input type="number" className="input-field" value={form.caution} onChange={(e) => setForm({ ...form, caution: +e.target.value })} /></Field>
+        <div className="grid grid-cols-1 gap-3">
+          <Field label="Prix location (DA)"><input type="number" className="input-field" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} /></Field>
         </div>
-        <Field label="Notes">
-          <textarea className="input-field" rows={3} value={form.notes ?? ""} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-        </Field>
       </div>
     </Drawer>
   );

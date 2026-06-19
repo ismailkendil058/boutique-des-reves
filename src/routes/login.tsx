@@ -12,6 +12,7 @@ function LoginPage() {
   const allEmployees = useStore((s) => s.employees);
   const employees = useMemo(() => allEmployees.filter((e) => e.active), [allEmployees]);
   const loginEmployee = useStore((s) => s.loginEmployee);
+  const loginEmployeeDemo = useStore((s) => s.loginEmployeeDemo);
   // Load all data (employees) when the login page mounts
   useEffect(() => {
     // Only load if employees not yet fetched
@@ -24,16 +25,26 @@ function LoginPage() {
   const [pin, setPin] = useState("");
   const [shake, setShake] = useState(false);
 
+  // Update selectedId once employees load asynchronously
   useEffect(() => {
-    if (pin.length === 4) {
-      const ok = loginEmployee(selectedId, pin);
-      if (!ok) {
-        setShake(true);
-        setTimeout(() => { setShake(false); setPin(""); }, 600);
-      } else {
-        navigate({ to: "/stock" });
-      }
+    if (!selectedId && employees.length > 0) {
+      setSelectedId(employees[0].id);
     }
+  }, [employees, selectedId]);
+
+  useEffect(() => {
+    const triggerLogin = async () => {
+      if (pin.length === 4) {
+        const ok = await loginEmployee(selectedId, pin);
+        if (!ok) {
+          setShake(true);
+          setTimeout(() => { setShake(false); setPin(""); }, 600);
+        } else {
+          navigate({ to: "/stock" });
+        }
+      }
+    };
+    triggerLogin();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pin, selectedId, loginEmployee]);
 
@@ -91,7 +102,7 @@ function LoginPage() {
 
         <div className="text-center mt-6">
           <button
-            onClick={() => { loginDemo(); navigate({ to: "/stock" }); }}
+            onClick={() => { loginEmployeeDemo(); navigate({ to: "/stock" }); }}
             className="text-[13px] font-medium"
             style={{ color: "#74367E" }}
           >
