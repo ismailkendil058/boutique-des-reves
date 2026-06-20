@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
   component: AdminLogin,
@@ -10,11 +10,11 @@ export const Route = createFileRoute("/admin")({
 function AdminLogin() {
   const navigate = useNavigate();
   const loginAdmin = useStore((s) => s.loginAdmin);
-  const loginDemo = useStore((s) => s.loginAdminDemo);
   const role = useStore((s) => s.auth.role);
   const [pwd, setPwd] = useState("");
   const [show, setShow] = useState(false);
   const [err, setErr] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (role === "admin") navigate({ to: "/dashboard" });
@@ -24,8 +24,16 @@ function AdminLogin() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const ok = await loginAdmin(pwd);
-    if (!ok) { setErr(true); setTimeout(() => setErr(false), 1200); }
+    if (!pwd.trim()) return;
+    setLoading(true);
+    try {
+      const ok = await loginAdmin(pwd);
+      if (!ok) { setErr(true); setTimeout(() => setErr(false), 1500); }
+    } catch {
+      setErr(true); setTimeout(() => setErr(false), 1500);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -49,6 +57,7 @@ function AdminLogin() {
               style={err ? { borderColor: "#C0392B" } : undefined}
               placeholder="••••••••"
               autoFocus
+              disabled={loading}
             />
             <button
               type="button"
@@ -61,16 +70,23 @@ function AdminLogin() {
             </button>
           </div>
 
-          <button type="submit" className="btn-primary w-full justify-center mt-6">
-            Accéder
+          {err && (
+            <p className="text-xs mt-2" style={{ color: "#C0392B" }}>
+              Mot de passe incorrect
+            </p>
+          )}
+
+          <button type="submit" className="btn-primary w-full justify-center mt-6" disabled={loading}>
+            {loading ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Vérification…
+              </span>
+            ) : (
+              "Accéder"
+            )}
           </button>
         </form>
-
-        <div className="text-center mt-6">
-          <button onClick={loginDemo} className="text-[13px] font-medium" style={{ color: "#74367E" }}>
-            Accès démo admin →
-          </button>
-        </div>
 
         <div className="text-center mt-4">
           <a href="/login" className="text-xs" style={{ color: "rgba(26,26,26,0.55)" }}>

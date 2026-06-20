@@ -12,7 +12,6 @@ function LoginPage() {
   const allEmployees = useStore((s) => s.employees);
   const employees = useMemo(() => allEmployees.filter((e) => e.active), [allEmployees]);
   const loginEmployee = useStore((s) => s.loginEmployee);
-  const loginEmployeeDemo = useStore((s) => s.loginEmployeeDemo);
   // Load all data (employees) when the login page mounts
   useEffect(() => {
     // Only load if employees not yet fetched
@@ -98,16 +97,6 @@ function LoginPage() {
               {k === "⌫" ? <Delete className="inline w-5 h-5" /> : k}
             </button>
           ))}
-        </div>
-
-        <div className="text-center mt-6">
-          <button
-            onClick={() => { loginEmployeeDemo(); navigate({ to: "/stock" }); }}
-            className="text-[13px] font-medium"
-            style={{ color: "#74367E" }}
-          >
-            Accès démo sans mot de passe →
-          </button>
         </div>
 
         <div className="text-center mt-4">

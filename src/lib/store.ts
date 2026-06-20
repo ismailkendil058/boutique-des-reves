@@ -1,6 +1,7 @@
 // src/lib/store.ts
 import { create } from "zustand";
 import api from "./api";
+import { supabase } from "./supabaseClient";
 import { parseMachta } from "./format";
 
 /** Types imported from the API layer */
@@ -100,7 +101,17 @@ export const useStore = create<StoreState>((set, get) => ({
     return false;
   },
   loginAdmin: async (password) => {
-    if (password === "admin") {
+    // Fetch the admin password from the Supabase "admin" table
+    const { data, error } = await supabase
+      .from("admin")
+      .select("password")
+      .limit(1)
+      .single();
+    if (error || !data) {
+      console.error("Failed to fetch admin password", error);
+      return false;
+    }
+    if (password === data.password) {
       set({ auth: { role: "admin", employeeName: "Administratrice" } });
       return true;
     }
