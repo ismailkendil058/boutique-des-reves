@@ -345,7 +345,30 @@ export async function deleteVersement(
 export async function getReservations(): Promise<Reservation[]> {
   const { data, error } = await supabase.from("reservations").select("*");
   if (error) handleError(error);
-  return (data ?? []).map((r: any) => fromDB(r)) as Reservation[];
+
+  const reservations = (data ?? []).map((r: any) => fromDB(r)) as Reservation[];
+
+  // Fetch articleIds and articlePrices from junction table for each reservation
+  for (const res of reservations) {
+    const { data: junctionRows, error: jErr } = await supabase
+      .from("reservation_articles")
+      .select("article_id, custom_price")
+      .eq("reservation_id", res.id);
+    if (jErr) handleError(jErr);
+    const articleIds = (junctionRows ?? []).map((r: any) => r.article_id);
+    const articlePricesMap: Record<string, number> = {};
+    for (const row of junctionRows ?? []) {
+      if (row.custom_price != null) {
+        articlePricesMap[row.article_id] = Number(row.custom_price);
+      }
+    }
+    (res as any).articleIds = articleIds;
+    if (Object.keys(articlePricesMap).length > 0) {
+      (res as any).articlePrices = articlePricesMap;
+    }
+  }
+
+  return reservations;
 }
 
 export async function createReservation(
@@ -363,11 +386,12 @@ export async function createReservation(
     .single();
   if (error) handleError(error);
 
-  // Junction table for articles
+  // Junction table for articles (with optional custom prices)
   if (articleIds && articleIds.length) {
     const junction = articleIds.map((aid) => ({
       reservation_id: (data as any).id,
       article_id: aid,
+      custom_price: articlePrices?.[aid] ?? null,
     }));
     const { error: jErr } = await supabase
       .from("reservation_articles")
@@ -375,7 +399,11 @@ export async function createReservation(
     if (jErr) handleError(jErr);
   }
 
-  return fromDB(data) as any;
+  // Build the return object with articleIds
+  const saved = fromDB(data) as any;
+  saved.articleIds = articleIds ?? [];
+  if (articlePrices) saved.articlePrices = articlePrices;
+  return saved;
 }
 
 export async function deleteReservation(id: string): Promise<void> {
