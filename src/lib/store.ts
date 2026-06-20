@@ -159,6 +159,14 @@ export const useStore = create<StoreState>((set, get) => ({
 
   addLocation: async (l) => {
     const loc = await api.createLocation(l);
+    // Mark selected articles as "Loué"
+    for (const aid of (l.articleIds ?? [])) {
+      const article = get().articles.find((a) => a.id === aid);
+      if (article && article.status === "Disponible") {
+        const updated = await api.updateArticle(aid, { status: "Loué" });
+        set((s) => ({ articles: s.articles.map((a) => (a.id === aid ? updated : a)) }));
+      }
+    }
     set((s) => ({ locations: [...s.locations, loc] }));
   },
   updateLocation: async (id, updates) => {
@@ -166,6 +174,17 @@ export const useStore = create<StoreState>((set, get) => ({
     set((s) => ({ locations: s.locations.map((l) => (l.id === id ? updated : l)) }));
   },
   deleteLocation: async (id) => {
+    const loc = get().locations.find((l) => l.id === id);
+    // Restore articles back to "Disponible" before deleting
+    if (loc && loc.status !== "Rendue") {
+      for (const aid of (loc.articleIds ?? [])) {
+        const article = get().articles.find((a) => a.id === aid);
+        if (article && article.status === "Loué") {
+          const artUpdated = await api.updateArticle(aid, { status: "Disponible" });
+          set((s) => ({ articles: s.articles.map((a) => (a.id === aid ? artUpdated : a)) }));
+        }
+      }
+    }
     // Delete saved contracts referencing this location first
     const contracts = get().savedContracts.filter((c) => c.locationId === id);
     for (const c of contracts) {
@@ -194,6 +213,14 @@ export const useStore = create<StoreState>((set, get) => ({
     if (!loc) return;
     const updated = { ...loc, actualReturnDate: returnDate, status: "Rendue" as const };
     await api.updateLocation(locId, updated);
+    // Restore articles back to "Disponible"
+    for (const aid of (loc.articleIds ?? [])) {
+      const article = get().articles.find((a) => a.id === aid);
+      if (article && article.status === "Loué") {
+        const artUpdated = await api.updateArticle(aid, { status: "Disponible" });
+        set((s) => ({ articles: s.articles.map((a) => (a.id === aid ? artUpdated : a)) }));
+      }
+    }
     set((s) => ({ locations: s.locations.map((l) => (l.id === locId ? updated : l)) }));
   },
   markCautionReturned: async (locId) => {
@@ -302,6 +329,14 @@ export const useStore = create<StoreState>((set, get) => ({
       notes: reservation.notes,
     };
     const loc = await api.createLocation(payload);
+    // Mark selected articles as "Loué"
+    for (const aid of (reservation.articleIds ?? [])) {
+      const article = get().articles.find((a) => a.id === aid);
+      if (article && article.status === "Disponible") {
+        const updated = await api.updateArticle(aid, { status: "Loué" });
+        set((s) => ({ articles: s.articles.map((a) => (a.id === aid ? updated : a)) }));
+      }
+    }
     set((s) => ({
       locations: [...s.locations, loc],
       reservations: s.reservations.filter((r) => r.id !== id),

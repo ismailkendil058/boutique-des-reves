@@ -27,6 +27,7 @@ function LocationsPage() {
   const pendingOpen = useStore((s) => s.pendingOpenLocationId);
   const setPendingNew = useStore((s) => s.setPendingNewLocation);
   const setPendingOpen = useStore((s) => s.setPendingOpenLocation);
+  const isAdmin = useStore((s) => s.auth.role === "admin");
 
   const [tab, setTab] = useState<Tab>("En cours");
   const [newOpen, setNewOpen] = useState(false);
@@ -59,9 +60,11 @@ function LocationsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="page-title">Locations</h1>
-        <button onClick={() => setNewOpen(true)} className="btn-primary">
-          <Plus className="w-4 h-4" /> Nouvelle location
-        </button>
+        {isAdmin && (
+          <button onClick={() => setNewOpen(true)} className="btn-primary">
+            <Plus className="w-4 h-4" /> Nouvelle location
+          </button>
+        )}
       </div>
 
       <div className="flex gap-1 border-b overflow-x-auto" style={{ borderColor: "#E5E5E5" }}>

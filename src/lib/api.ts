@@ -207,7 +207,30 @@ export async function deleteEmployee(id: string): Promise<void> {
 export async function getLocations(): Promise<Location[]> {
   const { data, error } = await supabase.from("locations").select("*");
   if (error) handleError(error);
-  return (data ?? []).map((r: any) => fromDB(r)) as Location[];
+
+  const locations = (data ?? []).map((r: any) => fromDB(r)) as Location[];
+
+  // Fetch articleIds and articlePrices from junction table for each location
+  for (const loc of locations) {
+    const { data: junctionRows, error: jErr } = await supabase
+      .from("location_articles")
+      .select("article_id, custom_price")
+      .eq("location_id", loc.id);
+    if (jErr) handleError(jErr);
+    const articleIds = (junctionRows ?? []).map((r: any) => r.article_id);
+    const articlePricesMap: Record<string, number> = {};
+    for (const row of junctionRows ?? []) {
+      if (row.custom_price != null) {
+        articlePricesMap[row.article_id] = Number(row.custom_price);
+      }
+    }
+    (loc as any).articleIds = articleIds;
+    if (Object.keys(articlePricesMap).length > 0) {
+      (loc as any).articlePrices = articlePricesMap;
+    }
+  }
+
+  return locations;
 }
 
 export async function createLocation(
@@ -259,7 +282,11 @@ export async function createLocation(
     });
   }
 
-  return fromDB(inserted) as any;
+  // Build the return object with articleIds
+  const saved = fromDB(inserted) as any;
+  saved.articleIds = articleIds ?? [];
+  if (articlePrices) saved.articlePrices = articlePrices;
+  return saved;
 }
 
 export async function updateLocation(
@@ -366,13 +393,27 @@ export async function getSavedContracts(): Promise<SavedContract[]> {
     .from("saved_contracts")
     .select("*");
   if (error) handleError(error);
-  return (data ?? []).map((r: any) => fromDB(r)) as SavedContract[];
+
+  // Fetch articles for each saved contract
+  const contracts = (data ?? []).map((r: any) => fromDB(r)) as SavedContract[];
+  for (const contract of contracts) {
+    const { data: arts, error: artsErr } = await supabase
+      .from("saved_contract_articles")
+      .select("name, price")
+      .eq("saved_contract_id", contract.id);
+    if (artsErr) handleError(artsErr);
+    (contract as any).articles = (arts ?? []).map((a: any) => ({
+      name: a.name,
+      price: Number(a.price),
+    }));
+  }
+  return contracts;
 }
 
 export async function saveContract(
   contract: Omit<SavedContract, "id" | "savedAt">,
 ): Promise<SavedContract> {
-  const { articles: _arts, ...rest } = contract as any;
+  const { articles, ...rest } = contract as any;
   const payload = toDB({
     ...rest,
     savedAt: new Date().toISOString().slice(0, 10),
@@ -383,7 +424,23 @@ export async function saveContract(
     .select()
     .single();
   if (error) handleError(error);
-  return fromDB(data) as any;
+
+  // Insert articles into junction table
+  if (articles && articles.length) {
+    const articleRows = articles.map((a: { name: string; price: number }) => ({
+      saved_contract_id: (data as any).id,
+      name: a.name,
+      price: a.price,
+    }));
+    const { error: aErr } = await supabase
+      .from("saved_contract_articles")
+      .insert(articleRows);
+    if (aErr) handleError(aErr);
+  }
+
+  const saved = fromDB(data) as any;
+  saved.articles = articles ?? [];
+  return saved;
 }
 
 export async function deleteSavedContract(id: string): Promise<void> {

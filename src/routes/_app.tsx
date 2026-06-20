@@ -24,6 +24,10 @@ function AppLayout() {
   const auth = useStore((s) => s.auth);
   const logout = useStore((s) => s.logout);
   const path = useRouterState({ select: (s) => s.location.pathname });
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const openMobile = useCallback(() => setMobileOpen(true), []);
+  const closeMobile = useCallback(() => setMobileOpen(false), []);
 
   useEffect(() => {
     if (!auth.role) navigate({ to: "/login" });
@@ -44,11 +48,6 @@ function AppLayout() {
   if (!auth.role) return null;
 
   const items = NAV.filter((i) => !i.admin || auth.role === "admin");
-
-  const [mobileOpen, setMobileOpen] = useState(false);
-
-  const openMobile = useCallback(() => setMobileOpen(true), []);
-  const closeMobile = useCallback(() => setMobileOpen(false), []);
 
   const handleLogout = () => {
     logout();

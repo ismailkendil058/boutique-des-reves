@@ -60,17 +60,19 @@ function CaissePage() {
   }, [filterMode, selectedDay, selectedMonth, startDate, endDate]);
 
   const allVersements = useMemo(() => {
-    return locations.flatMap((l) => l.versements.map((v) => ({ ...v, location: l })))
+    return locations.flatMap((l) => (l.versements ?? []).map((v) => ({ ...v, location: l })))
       .filter((v) => { const d = new Date(v.date); return d >= start && d <= end; })
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [locations, start, end]);
 
-  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
-  const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0,0,0,0);
-  const encaisseToday = locations.flatMap((l) => l.versements).filter((v) => new Date(v.date) >= todayStart).reduce((s, v) => s + v.amount, 0);
-  const encaisseMonth = locations.flatMap((l) => l.versements).filter((v) => new Date(v.date) >= monthStart).reduce((s, v) => s + v.amount, 0);
+  const periodTotal = allVersements.reduce((s, v) => s + v.amount, 0);
   const restesPercevoir = locations.reduce((s, l) => s + locReste(l), 0);
-  const totalRange = allVersements.reduce((s, v) => s + v.amount, 0);
+
+  const periodLabel = useMemo(() => {
+    if (filterMode === "day") return `le ${selectedDay}`;
+    if (filterMode === "month") return `en ${selectedMonth}`;
+    return `du ${startDate} au ${endDate}`;
+  }, [filterMode, selectedDay, selectedMonth, startDate, endDate]);
 
   return (
     <div className="space-y-6">
@@ -104,24 +106,24 @@ function CaissePage() {
           {filterMode === "day" && (
             <div className="flex items-center gap-2 w-full md:w-auto">
               <span className="text-xs font-semibold uppercase tracking-wider text-[rgba(26,26,26,0.55)]">Date :</span>
-              <input type="date" className="input-field max-w-[200px]" value={selectedDay} onChange={(e) => setSelectedDay(e.target.value)} />
+              <input type="date" className="input-field max-w-[200px]" value={selectedDay} onChange={(e) => setSelectedDay(e.target.value)} aria-label="Date" />
             </div>
           )}
           {filterMode === "month" && (
             <div className="flex items-center gap-2 w-full md:w-auto">
               <span className="text-xs font-semibold uppercase tracking-wider text-[rgba(26,26,26,0.55)]">Mois :</span>
-              <input type="month" className="input-field max-w-[200px]" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} />
+              <input type="month" className="input-field max-w-[200px]" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} aria-label="Mois" />
             </div>
           )}
           {filterMode === "period" && (
             <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center w-full md:w-auto">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold uppercase tracking-wider text-[rgba(26,26,26,0.55)]">Du :</span>
-                <input type="date" className="input-field max-w-[160px]" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                <input type="date" className="input-field max-w-[160px]" value={startDate} onChange={(e) => setStartDate(e.target.value)} aria-label="Date de début" />
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold uppercase tracking-wider text-[rgba(26,26,26,0.55)]">Au :</span>
-                <input type="date" className="input-field max-w-[160px]" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                <input type="date" className="input-field max-w-[160px]" value={endDate} onChange={(e) => setEndDate(e.target.value)} aria-label="Date de fin" />
               </div>
             </div>
           )}
@@ -129,15 +131,15 @@ function CaissePage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Stat label="Encaissé aujourd'hui" value={formatDA(encaisseToday)} />
-        <Stat label="Encaissé ce mois" value={formatDA(encaisseMonth)} />
+        <Stat label={`Encaissé ${periodLabel}`} value={formatDA(periodTotal)} />
         <Stat label="Restes à percevoir" value={formatDA(restesPercevoir)} />
+        <Stat label="Nombre de versements" value={String(allVersements.length)} />
       </div>
 
       <div className="card-surface" style={{ padding: 0 }}>
         <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: "#E5E5E5" }}>
           <div className="section-label">Versements sur la période</div>
-          <div className="text-sm" style={{ color: "#74367E", fontWeight: 600 }}>Total : {formatDA(totalRange)}</div>
+          <div className="text-sm" style={{ color: "#74367E", fontWeight: 600 }}>Total : {formatDA(periodTotal)}</div>
         </div>
         {allVersements.length === 0 ? (
           <div className="p-8 text-center text-sm" style={{ color: "rgba(26,26,26,0.55)" }}>Aucun versement sur cette période.</div>
