@@ -4,7 +4,7 @@ import { useStore, type Reservation } from "@/lib/store";
 import { formatDA, formatDate, today as todayStr, parseMachta, serializeMachta } from "@/lib/format";
 import { Modal, Drawer, Badge, EmptyState } from "@/components/ui-kit";
 import { Th, Td, FieldLabel } from "./_components/table";
-import { Plus, Trash2, BookMarked, CheckCircle } from "lucide-react";
+import { Plus, Trash2, BookMarked, CheckCircle, Search } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/reservation")({
@@ -124,6 +124,7 @@ function NewReservationModal({ open, onClose }: { open: boolean; onClose: () => 
   const [returnDate, setReturnDate] = useState(todayStr());
   const [occasion, setOccasion] = useState<"Mariage" | "Fiançailles" | "Cérémonie" | "Anniversaire" | "Autre">("Mariage");
   const [notes, setNotes] = useState("");
+  const [articleSearch, setArticleSearch] = useState("");
   const [err, setErr] = useState("");
   const [machtaActive, setMachtaActive] = useState(false);
   const [machtaPrice, setMachtaPrice] = useState(0);
@@ -157,7 +158,7 @@ function NewReservationModal({ open, onClose }: { open: boolean; onClose: () => 
     }
   };
 
-  const availableArts = articles.filter((a) => a.status === "Disponible");
+  const availableArts = articles.filter((a) => a.status === "Disponible").filter((a) => !articleSearch.trim() || a.name.toLowerCase().includes(articleSearch.toLowerCase()));
 
   return (
     <Modal
@@ -179,6 +180,15 @@ function NewReservationModal({ open, onClose }: { open: boolean; onClose: () => 
 
         {/* Articles */}
         <Section title="2. Articles">
+          <div className="relative mb-2">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(26,26,26,0.4)" }} />
+            <input
+              className="input-field w-full pl-9"
+              placeholder="Rechercher un article..."
+              value={articleSearch}
+              onChange={(e) => setArticleSearch(e.target.value)}
+            />
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-1">
             {availableArts.map((a) => {
               const sel = selArticles.includes(a.id);

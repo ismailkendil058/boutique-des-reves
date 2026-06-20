@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useStore, type Article, type Category, type ArticleStatus, type Reservation } from "@/lib/store";
 import { formatDA, formatDate } from "@/lib/format";
 import { Drawer, Badge, EmptyState, Modal } from "@/components/ui-kit";
-import { Plus, MoreVertical, Package } from "lucide-react";
+import { Plus, MoreVertical, Package, Search, X } from "lucide-react";
 
 export const Route = createFileRoute("/_app/stock")({
   component: StockPage,
@@ -23,13 +23,24 @@ function StockPage() {
 
   const [cat, setCat] = useState<typeof CATS[number]>("Tous");
   const [stat, setStat] = useState<typeof STATUSES[number]>("Tous");
+  const [search, setSearch] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<Article | null>(null);
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [infoOpen, setInfoOpen] = useState(false);
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
 
-  const filtered = articles.filter((a) => a && (cat === "Tous" || a.category === cat) && (stat === "Tous" || a.status === stat));
+  const q = search.trim().toLowerCase();
+  const filtered = articles.filter((a) => {
+    if (!a) return false;
+    if (cat !== "Tous" && a.category !== cat) return false;
+    if (stat !== "Tous" && a.status !== stat) return false;
+    if (q) {
+      const haystack = `${a.name} ${a.category} ${a.size ?? ""} ${a.color ?? ""}`.toLowerCase();
+      return haystack.includes(q);
+    }
+    return true;
+  });
 
   const openCreate = () => { setEditing(null); setDrawerOpen(true); };
   const openEdit = (a: Article) => { setEditing(a); setDrawerOpen(true); setMenuFor(null); };
@@ -39,6 +50,26 @@ function StockPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="page-title">Stock</h1>
         <button onClick={openCreate} className="btn-primary"><Plus className="w-4 h-4" /> Ajouter un article</button>
+      </div>
+
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(26,26,26,0.4)" }} />
+        <input
+          className="input-field w-full"
+          style={{ paddingLeft: 36, paddingRight: search ? 36 : undefined }}
+          placeholder="Rechercher un article..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        {search && (
+          <button
+            onClick={() => setSearch("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5"
+            aria-label="Effacer"
+          >
+            <X className="w-4 h-4" style={{ color: "rgba(26,26,26,0.4)" }} />
+          </button>
+        )}
       </div>
 
       <div className="space-y-3">
