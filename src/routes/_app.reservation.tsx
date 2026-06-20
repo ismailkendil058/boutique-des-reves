@@ -157,7 +157,7 @@ function NewReservationModal({ open, onClose }: { open: boolean; onClose: () => 
     }
   };
 
-  const availableArts = articles.filter((a) => a.status === "Disponible" || selArticles.includes(a.id));
+  const availableArts = articles.filter((a) => a.status === "Disponible");
 
   return (
     <Modal
@@ -213,7 +213,7 @@ function NewReservationModal({ open, onClose }: { open: boolean; onClose: () => 
                     <span className="flex-1 truncate">{a.name}</span>
                     <input
                       type="number" className="input-field w-28 text-right"
-                      value={customPrices[aid] ?? ""} placeholder={a.price.toString()}
+                      value={customPrices[aid] ?? a.price} placeholder={a.price.toString()}
                       onChange={(e) => setCustomPrices({ ...customPrices, [aid]: +e.target.value || a.price })}
                     />
                     <span className="text-xs" style={{ color: "rgba(26,26,26,0.45)" }}>DA</span>
@@ -234,7 +234,7 @@ function NewReservationModal({ open, onClose }: { open: boolean; onClose: () => 
                 onChange={(e) => {
                   setMachtaActive(e.target.checked);
                   if (e.target.checked && machtaPrice === 0) {
-                    setMachtaPrice(5000);
+                    setMachtaPrice(15000);
                   }
                 }}
                 className="w-4 h-4 rounded text-[#74367E] focus:ring-[#74367E] border-gray-300"

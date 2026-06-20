@@ -206,7 +206,7 @@ function NewLocationModal({ open, onClose }: { open: boolean; onClose: () => voi
     }
   };
 
-  const availableArts = articles.filter((a) => a.status === "Disponible" || selArticles.includes(a.id));
+  const availableArts = articles.filter((a) => a.status === "Disponible");
 
   return (
     <Modal
@@ -269,7 +269,7 @@ function NewLocationModal({ open, onClose }: { open: boolean; onClose: () => voi
                     <input
                       type="number"
                       className="input-field w-28 text-right"
-                      value={customPrices[aid] ?? ""}
+                      value={customPrices[aid] ?? a.price}
                       placeholder={a.price.toString()}
                       onChange={(e) => setCustomPrices({ ...customPrices, [aid]: +e.target.value || a.price })}
                       aria-label={`Prix ${a.name}`}
@@ -292,7 +292,7 @@ function NewLocationModal({ open, onClose }: { open: boolean; onClose: () => voi
                 onChange={(e) => {
                   setMachtaActive(e.target.checked);
                   if (e.target.checked && machtaPrice === 0) {
-                    setMachtaPrice(5000);
+                    setMachtaPrice(15000);
                   }
                 }}
                 className="w-4 h-4 rounded text-[#74367E] focus:ring-[#74367E] border-gray-300"
