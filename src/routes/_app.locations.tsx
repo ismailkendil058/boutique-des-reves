@@ -99,7 +99,7 @@ function LocationsPage() {
               {filtered.map((l) => {
                 const client = clients.find((c) => c.id === l.clientId);
                 const machta = parseMachta(l.notes);
-                const arts = articles.filter((a) => l.articleIds.includes(a.id)).map((a) => a.name).join(", ") || (machta.active ? "Service Machta" : "Aucun");
+                const arts = articles.filter((a) => (l.articleIds ?? []).includes(a.id)).map((a) => a.name).join(", ") || (machta.active ? "Service Machta" : "Aucun");
                 const reste = locReste(l);
                 const overdue = l.status === "En retard";
                 return (
@@ -528,7 +528,7 @@ function LocationDetail({ location, onClose }: { location: Location; onClose: ()
   const [editOpen, setEditOpen] = useState(false);
 
   const client = clients.find((c) => c.id === location.clientId);
-  const arts = articles.filter((a) => location.articleIds.includes(a.id));
+  const arts = articles.filter((a) => (location.articleIds ?? []).includes(a.id));
   const reste = locReste(location);
 
   const submitPay = () => {
@@ -702,7 +702,7 @@ function PrintContract({ location }: { location: Location }) {
   const clients = useStore((s) => s.clients);
   const articles = useStore((s) => s.articles);
   const client = clients.find((c) => c.id === location.clientId);
-  const arts = articles.filter((a) => location.articleIds.includes(a.id));
+  const arts = articles.filter((a) => (location.articleIds ?? []).includes(a.id));
   const verse = locVerse(location);
   const reste = locReste(location);
   const machta = parseMachta(location.notes);

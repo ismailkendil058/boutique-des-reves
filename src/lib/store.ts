@@ -239,7 +239,7 @@ export const useStore = create<StoreState>((set, get) => ({
     const loc = get().locations.find((l) => l.id === locId);
     if (!loc) return;
     const client = get().clients.find((c) => c.id === loc.clientId);
-    const articles = get().articles.filter((a) => loc.articleIds.includes(a.id));
+    const articles = get().articles.filter((a) => (loc.articleIds ?? []).includes(a.id));
     const verse = locVerse(loc);
     const reste = locReste(loc);
 

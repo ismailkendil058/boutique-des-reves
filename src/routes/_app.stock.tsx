@@ -57,7 +57,7 @@ function StockPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {filtered.map((a) => (
             <div key={a.id} className="card-surface" style={{ padding: 16 }} onClick={() => {
-                const res = reservations.find(r => r.articleIds.includes(a.id));
+                const res = reservations.find(r => (r.articleIds ?? []).includes(a.id));
                 setSelectedReservation(res || null);
                 setInfoOpen(true);
               }}>

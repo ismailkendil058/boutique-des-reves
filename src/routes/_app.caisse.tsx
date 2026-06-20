@@ -152,7 +152,7 @@ function CaissePage() {
               {allVersements.map((v) => {
                 const client = clients.find((c) => c.id === v.location.clientId);
                 const machta = parseMachta(v.location.notes);
-                const arts = articles.filter((a) => v.location.articleIds.includes(a.id)).map((a) => a.name).join(", ") || (machta.active ? "Service Machta" : "Aucun");
+                const arts = articles.filter((a) => (v.location.articleIds ?? []).includes(a.id)).map((a) => a.name).join(", ") || (machta.active ? "Service Machta" : "Aucun");
                 return (
                   <tr key={v.id} style={{ borderBottom: "1px solid #E5E5E5" }}>
                     <Td>{formatDate(v.date)}</Td>

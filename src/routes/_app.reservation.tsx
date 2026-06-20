@@ -59,7 +59,7 @@ function ReservationPage() {
               {reservations.map((r) => {
                 const client = clients.find((c) => c.id === r.clientId);
                 const machta = parseMachta(r.notes);
-                const arts = articles.filter((a) => r.articleIds.includes(a.id)).map((a) => a.name).join(", ") || (machta.active ? "Service Machta" : "Aucun");
+                const arts = articles.filter((a) => (r.articleIds ?? []).includes(a.id)).map((a) => a.name).join(", ") || (machta.active ? "Service Machta" : "Aucun");
                 return (
                   <tr
                     key={r.id}
@@ -301,7 +301,7 @@ function ReservationDetail({ reservation, onClose }: { reservation: Reservation;
   const [initialPayment, setInitialPayment] = useState(0);
 
   const client = clients.find((c) => c.id === reservation.clientId);
-  const arts = articles.filter((a) => reservation.articleIds.includes(a.id));
+  const arts = articles.filter((a) => (reservation.articleIds ?? []).includes(a.id));
   const machta = parseMachta(reservation.notes);
 
   const doValidate = () => {

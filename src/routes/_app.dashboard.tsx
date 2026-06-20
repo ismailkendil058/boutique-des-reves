@@ -113,7 +113,7 @@ function Dashboard() {
             <tbody>
               {overdue.map((l) => {
                 const client = clients.find((c) => c.id === l.clientId);
-                const arts = articles.filter((a) => l.articleIds.includes(a.id)).map((a) => a.name).join(", ");
+                const arts = articles.filter((a) => (l.articleIds ?? []).includes(a.id)).map((a) => a.name).join(", ");
                 const days = Math.floor((Date.now() - new Date(l.returnDate).getTime()) / 86400000);
                 return (
                   <tr key={l.id} style={{ borderBottom: "1px solid #E5E5E5" }}>
