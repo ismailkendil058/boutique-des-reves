@@ -42,6 +42,7 @@ export interface StoreState {
   logout: () => void;
   // Data loading
   loadAllData: () => Promise<void>;
+  loadEmployees: () => Promise<void>;
   // CRUD actions – async proxy to API
   addArticle: (a: Omit<Article, "id">) => Promise<void>;
   updateArticle: (id: string, a: Partial<Article>) => Promise<void>;
@@ -69,6 +70,8 @@ export interface StoreState {
   addReservation: (r: Omit<Reservation, "id" | "createdAt">) => Promise<void>;
   deleteReservation: (id: string) => Promise<void>;
   validateReservation: (id: string, initialPayment: number) => Promise<void>;
+  addReservationVersement: (resId: string, v: Omit<Versement, "id">) => Promise<void>;
+  deleteReservationVersement: (resId: string, verseId: string) => Promise<void>;
 }
 
 /** Simple UID generator for temporary client‑side IDs */
@@ -138,6 +141,10 @@ export const useStore = create<StoreState>((set, get) => ({
       reservations: data.reservations,
       savedContracts: data.savedContracts,
     });
+  },
+  loadEmployees: async () => {
+    const employees = await api.loadEmployees();
+    set({ employees });
   },
 
   // ---------- CRUD ----------
@@ -295,7 +302,7 @@ export const useStore = create<StoreState>((set, get) => ({
       pickupDate: loc.pickupDate,
       returnDate: loc.returnDate,
       total: loc.total,
-      caution: 0,
+      caution: loc.caution ?? 0,
       verse,
       reste,
       notes: machta.cleanNotes,
@@ -323,6 +330,22 @@ export const useStore = create<StoreState>((set, get) => ({
     await api.deleteReservation(id);
     set((s) => ({ reservations: s.reservations.filter((r) => r.id !== id) }));
   },
+  addReservationVersement: async (resId, v) => {
+    const verse = await api.addReservationVersement(resId, v);
+    set((s) => ({
+      reservations: s.reservations.map((r) =>
+        r.id === resId ? { ...r, versements: [...(r.versements ?? []), verse] } : r
+      ),
+    }));
+  },
+  deleteReservationVersement: async (resId, verseId) => {
+    await api.deleteReservationVersement(resId, verseId);
+    set((s) => ({
+      reservations: s.reservations.map((r) =>
+        r.id === resId ? { ...r, versements: (r.versements ?? []).filter((v) => v.id !== verseId) } : r
+      ),
+    }));
+  },
   validateReservation: async (id, initialPayment) => {
     const reservation = get().reservations.find((r) => r.id === id);
     if (!reservation) return;
@@ -334,12 +357,14 @@ export const useStore = create<StoreState>((set, get) => ({
       returnDate: reservation.returnDate,
       occasion: reservation.occasion,
       total: reservation.total,
-      caution: 0,
+      caution: reservation.caution ?? 0,
       initialPayment,
       versements: [],
       notes: reservation.notes,
     };
     const loc = await api.createLocation(payload);
+    // Delete the reservation from the server (including junction/versement rows)
+    await api.deleteReservationFull(id);
     // Mark selected articles as "Loué"
     for (const aid of (reservation.articleIds ?? [])) {
       const article = get().articles.find((a) => a.id === aid);

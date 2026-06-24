@@ -182,6 +182,12 @@ function ContractPage() {
                   <span>Reste à payer :</span>
                   <strong>{formatDA(selectedContract.reste)}</strong>
                 </div>
+                {selectedContract.caution > 0 && (
+                  <div className="flex justify-between">
+                    <span>Caution :</span>
+                    <strong>{formatDA(selectedContract.caution)}</strong>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -241,6 +247,7 @@ function PrintSavedContract({ contract }: { contract: SavedContract }) {
         <div>Total : <strong>{formatDA(contract.total)}</strong></div>
         <div>Versé : {formatDA(contract.verse)}</div>
         <div>Reste : <strong style={{ color: "#74367E" }}>{formatDA(contract.reste)}</strong></div>
+        {contract.caution > 0 && <div>Caution : <strong>{formatDA(contract.caution)}</strong></div>}
       </div>
 
       <div style={{ marginTop: 32 }}>

@@ -12,11 +12,10 @@ function LoginPage() {
   const allEmployees = useStore((s) => s.employees);
   const employees = useMemo(() => allEmployees.filter((e) => e.active), [allEmployees]);
   const loginEmployee = useStore((s) => s.loginEmployee);
-  // Load all data (employees) when the login page mounts
+  // Load only employees when the login page mounts (much faster than loadAllData)
   useEffect(() => {
-    // Only load if employees not yet fetched
     if (employees.length === 0) {
-      useStore.getState().loadAllData();
+      useStore.getState().loadEmployees();
     }
   }, []);
 

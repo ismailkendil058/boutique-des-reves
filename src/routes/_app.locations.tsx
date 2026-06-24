@@ -175,6 +175,7 @@ function NewLocationModal({ open, onClose }: { open: boolean; onClose: () => voi
   const [err, setErr] = useState("");
   const [machtaActive, setMachtaActive] = useState(false);
   const [machtaPrice, setMachtaPrice] = useState(0);
+  const [caution, setCaution] = useState<number | "">("");
 
   const totalArticles = articles.filter((a) => selArticles.includes(a.id)).reduce((s, a) => s + (customPrices[a.id] ?? a.price), 0);
   const total = totalArticles + (machtaActive ? machtaPrice : 0);
@@ -199,7 +200,7 @@ function NewLocationModal({ open, onClose }: { open: boolean; onClose: () => voi
       const articlePrices = hasCustomPrices ? Object.fromEntries(selArticles.map((id) => [id, customPrices[id] ?? articles.find((a) => a.id === id)!.price])) : undefined;
       await addLocation({
         clientId: client.id, articleIds: selArticles, articlePrices, pickupDate, returnDate, occasion,
-        total, caution: 0, notes: serializeMachta(notes, machtaActive, machtaPrice), initialPayment,
+        total, caution: Number(caution) || 0, notes: serializeMachta(notes, machtaActive, machtaPrice), initialPayment,
       });
       onClose();
     } catch (e) {
@@ -227,19 +228,19 @@ function NewLocationModal({ open, onClose }: { open: boolean; onClose: () => voi
           </div>
         </Section>
 
-        {/* Step 2 */}
-        <Section title="2. Articles">
+        {/* Step 2a: Tenues */}
+        <Section title="2.1. Tenues">
           <div className="relative mb-2">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(26,26,26,0.4)" }} />
             <input
               className="input-field w-full pl-9"
-              placeholder="Rechercher un article..."
+              placeholder="Rechercher une tenue..."
               value={articleSearch}
               onChange={(e) => setArticleSearch(e.target.value)}
             />
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-1">
-            {availableArts.map((a) => {
+            {availableArts.filter((a) => a.category === "Tenues").map((a) => {
               const sel = selArticles.includes(a.id);
               return (
                 <button
@@ -247,7 +248,38 @@ function NewLocationModal({ open, onClose }: { open: boolean; onClose: () => voi
                   onClick={() => {
                     if (sel) {
                       setSelArticles(selArticles.filter((x) => x !== a.id));
-                      // Remove custom price when deselecting
+                      const next = { ...customPrices };
+                      delete next[a.id];
+                      setCustomPrices(next);
+                    } else {
+                      setSelArticles([...selArticles, a.id]);
+                    }
+                  }}
+                  className="text-left p-3 rounded-lg border transition-colors"
+                  style={{
+                    borderColor: sel ? "#74367E" : "#E5E5E5",
+                    background: sel ? "rgba(116,54,126,0.06)" : "white",
+                  }}
+                >
+                  <div className="text-sm font-medium truncate">{a.name}</div>
+                  <div className="text-xs" style={{ color: "#74367E" }}>{formatDA(a.price)}</div>
+                </button>
+              );
+            })}
+          </div>
+        </Section>
+
+        {/* Step 2b: Accessoires */}
+        <Section title="2.2. Accessoires">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-1">
+            {availableArts.filter((a) => a.category === "Accessoires" || a.category === "Autre").map((a) => {
+              const sel = selArticles.includes(a.id);
+              return (
+                <button
+                  key={a.id}
+                  onClick={() => {
+                    if (sel) {
+                      setSelArticles(selArticles.filter((x) => x !== a.id));
                       const next = { ...customPrices };
                       delete next[a.id];
                       setCustomPrices(next);
@@ -348,9 +380,25 @@ function NewLocationModal({ open, onClose }: { open: boolean; onClose: () => voi
               <span style={{ color: "rgba(26,26,26,0.6)" }}>Total calculé</span>
               <span style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 22, color: "#74367E" }}>{formatDA(total)}</span>
             </div>
-            <div className="grid grid-cols-1 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <FieldLabel label="Versement initial">
                 <input type="number" className="input-field" value={initialPayment || ""} onChange={(e) => setInitialPayment(+e.target.value)} />
+              </FieldLabel>
+              <FieldLabel label="Caution">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    className="input-field flex-1"
+                    placeholder="Caution (Optionnel)"
+                    value={caution}
+                    min={0}
+                    onChange={(e) => {
+                      const val = e.target.value === "" ? "" : Number(e.target.value);
+                      setCaution(val);
+                    }}
+                  />
+                  <span className="text-xs" style={{ color: "rgba(26,26,26,0.45)" }}>DA</span>
+                </div>
               </FieldLabel>
             </div>
             <div className="flex items-center justify-between text-sm pt-2 border-t" style={{ borderColor: "#E5E5E5" }}>
@@ -767,6 +815,7 @@ function PrintContract({ location }: { location: Location }) {
         <div>Total : <strong>{formatDA(location.total)}</strong></div>
         <div>Versé : {formatDA(verse)}</div>
         <div>Reste : <strong style={{ color: "#74367E" }}>{formatDA(reste)}</strong></div>
+        {location.caution > 0 && <div>Caution : <strong>{formatDA(location.caution)}</strong></div>}
       </div>
 
       <div style={{ marginTop: 32 }}>

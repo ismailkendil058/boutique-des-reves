@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState, useCallback } from "react";
 import { useStore } from "@/lib/store";
+import { Toaster } from "@/components/ui/sonner";
 import {
   LayoutDashboard, Package, Users, CalendarDays, Wallet, UserCog, LogOut, FileText, BookMarked, Menu,
 } from "lucide-react";
@@ -56,6 +57,7 @@ function AppLayout() {
 
   return (
     <div className="min-h-screen flex bg-white">
+      <Toaster position="top-right" richColors />
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex w-[240px] flex-col border-r" style={{ borderColor: "#E5E5E5" }}>
         <div className="px-6 py-6 border-b" style={{ borderColor: "#E5E5E5" }}>

@@ -10,9 +10,12 @@ import type {
   Versement,
 } from "./types";
 
-/** Helper to handle errors */
-function handleError(error: any) {
-  console.error("Supabase error", error);
+/** Helper to handle errors – logs context then re-throws */
+function handleError(error: any, context?: string) {
+  const msg = context ? `Supabase error [${context}]` : "Supabase error";
+  console.error(msg, error?.message ?? error);
+  if (error?.hint) console.error("Hint:", error.hint);
+  if (error?.details) console.error("Details:", error.details);
   throw error;
 }
 
@@ -72,7 +75,7 @@ function omit(
 
 /** Fields that live in junction / child tables – must be stripped before parent insert */
 const LOCATION_EXTRA = ["articleIds", "articlePrices", "versements"];
-const RESERVATION_EXTRA = ["articleIds", "articlePrices"];
+const RESERVATION_EXTRA = ["articleIds", "articlePrices", "versements"];
 const SAVED_CONTRACT_EXTRA = ["articles"];
 const ARTICLE_EXTRA = ["title"]; // exists in TS type but not in DB
 
@@ -210,16 +213,29 @@ export async function getLocations(): Promise<Location[]> {
 
   const locations = (data ?? []).map((r: any) => fromDB(r)) as Location[];
 
-  // Fetch articleIds and articlePrices from junction table for each location
+  if (locations.length === 0) return locations;
+
+  const locationIds = locations.map((l) => l.id);
+
+  // Batch fetch all junction rows for all locations in ONE query
+  const { data: allJunctionRows, error: jErr } = await supabase
+    .from("location_articles")
+    .select("location_id, article_id, custom_price")
+    .in("location_id", locationIds);
+  if (jErr) handleError(jErr);
+
+  // Group by location_id
+  const junctionByLoc: Record<string, { article_id: string; custom_price: number | null }[]> = {};
+  for (const row of allJunctionRows ?? []) {
+    if (!junctionByLoc[row.location_id]) junctionByLoc[row.location_id] = [];
+    junctionByLoc[row.location_id].push(row);
+  }
+
   for (const loc of locations) {
-    const { data: junctionRows, error: jErr } = await supabase
-      .from("location_articles")
-      .select("article_id, custom_price")
-      .eq("location_id", loc.id);
-    if (jErr) handleError(jErr);
-    const articleIds = (junctionRows ?? []).map((r: any) => r.article_id);
+    const rows = junctionByLoc[loc.id] ?? [];
+    const articleIds = rows.map((r: any) => r.article_id);
     const articlePricesMap: Record<string, number> = {};
-    for (const row of junctionRows ?? []) {
+    for (const row of rows) {
       if (row.custom_price != null) {
         articlePricesMap[row.article_id] = Number(row.custom_price);
       }
@@ -340,6 +356,37 @@ export async function deleteVersement(
   if (error) handleError(error);
 }
 
+// ── RESERVATION VERSEMENTS ─────────────────────────────────────────
+
+export async function addReservationVersement(
+  resId: string,
+  verse: Omit<Versement, "id">,
+): Promise<Versement> {
+  const payload = {
+    ...verse,
+    id: crypto.randomUUID?.() ?? Math.random().toString(36).slice(2, 10),
+  };
+  const { data, error } = await supabase
+    .from("reservation_versements")
+    .insert({ ...payload, reservation_id: resId })
+    .select()
+    .single();
+  if (error) handleError(error);
+  return fromDB(data) as any;
+}
+
+export async function deleteReservationVersement(
+  resId: string,
+  verseId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("reservation_versements")
+    .delete()
+    .eq("id", verseId)
+    .eq("reservation_id", resId);
+  if (error) handleError(error);
+}
+
 // ── RESERVATIONS ───────────────────────────────────────────────────
 
 export async function getReservations(): Promise<Reservation[]> {
@@ -348,16 +395,45 @@ export async function getReservations(): Promise<Reservation[]> {
 
   const reservations = (data ?? []).map((r: any) => fromDB(r)) as Reservation[];
 
-  // Fetch articleIds and articlePrices from junction table for each reservation
-  for (const res of reservations) {
-    const { data: junctionRows, error: jErr } = await supabase
+  if (reservations.length === 0) return reservations;
+
+  const resIds = reservations.map((r) => r.id);
+
+  // Batch fetch ALL junction rows and versements in just 2 queries (instead of 2N)
+  const [articlesResult, versementsResult] = await Promise.all([
+    supabase
       .from("reservation_articles")
-      .select("article_id, custom_price")
-      .eq("reservation_id", res.id);
-    if (jErr) handleError(jErr);
-    const articleIds = (junctionRows ?? []).map((r: any) => r.article_id);
+      .select("reservation_id, article_id, custom_price")
+      .in("reservation_id", resIds),
+    supabase
+      .from("reservation_versements")
+      .select("*")
+      .in("reservation_id", resIds)
+      .order("date", { ascending: false }),
+  ]);
+
+  if (articlesResult.error) handleError(articlesResult.error);
+  if (versementsResult.error) handleError(versementsResult.error);
+
+  // Group article junction rows by reservation_id
+  const articlesByRes: Record<string, { article_id: string; custom_price: number | null }[]> = {};
+  for (const row of articlesResult.data ?? []) {
+    if (!articlesByRes[row.reservation_id]) articlesByRes[row.reservation_id] = [];
+    articlesByRes[row.reservation_id].push(row);
+  }
+
+  // Group versements by reservation_id
+  const versementsByRes: Record<string, any[]> = {};
+  for (const row of versementsResult.data ?? []) {
+    if (!versementsByRes[row.reservation_id]) versementsByRes[row.reservation_id] = [];
+    versementsByRes[row.reservation_id].push(row);
+  }
+
+  for (const res of reservations) {
+    const rows = articlesByRes[res.id] ?? [];
+    const articleIds = rows.map((r: any) => r.article_id);
     const articlePricesMap: Record<string, number> = {};
-    for (const row of junctionRows ?? []) {
+    for (const row of rows) {
       if (row.custom_price != null) {
         articlePricesMap[row.article_id] = Number(row.custom_price);
       }
@@ -366,6 +442,9 @@ export async function getReservations(): Promise<Reservation[]> {
     if (Object.keys(articlePricesMap).length > 0) {
       (res as any).articlePrices = articlePricesMap;
     }
+
+    const versRows = versementsByRes[res.id] ?? [];
+    (res as any).versements = versRows.map((v: any) => fromDB(v));
   }
 
   return reservations;
@@ -374,7 +453,7 @@ export async function getReservations(): Promise<Reservation[]> {
 export async function createReservation(
   res: Omit<Reservation, "id" | "createdAt">,
 ): Promise<Reservation> {
-  const { articleIds, articlePrices, ...rest } = res;
+  const { articleIds, articlePrices, versements: _vers, ...rest } = res;
   const payload = toDB({
     ...rest,
     createdAt: new Date().toISOString().slice(0, 10),
@@ -407,6 +486,9 @@ export async function createReservation(
 }
 
 export async function deleteReservation(id: string): Promise<void> {
+  // Delete child/junction rows first
+  await supabase.from("reservation_articles").delete().eq("reservation_id", id);
+  await supabase.from("reservation_versements").delete().eq("reservation_id", id);
   const { error } = await supabase
     .from("reservations")
     .delete()
@@ -422,19 +504,33 @@ export async function getSavedContracts(): Promise<SavedContract[]> {
     .select("*");
   if (error) handleError(error);
 
-  // Fetch articles for each saved contract
   const contracts = (data ?? []).map((r: any) => fromDB(r)) as SavedContract[];
-  for (const contract of contracts) {
-    const { data: arts, error: artsErr } = await supabase
-      .from("saved_contract_articles")
-      .select("name, price")
-      .eq("saved_contract_id", contract.id);
-    if (artsErr) handleError(artsErr);
-    (contract as any).articles = (arts ?? []).map((a: any) => ({
-      name: a.name,
-      price: Number(a.price),
-    }));
+
+  if (contracts.length === 0) return contracts;
+
+  const contractIds = contracts.map((c) => c.id);
+
+  // Batch fetch ALL articles for ALL contracts in ONE query (instead of N queries)
+  const { data: allArticles, error: artsErr } = await supabase
+    .from("saved_contract_articles")
+    .select("saved_contract_id, name, price")
+    .in("saved_contract_id", contractIds);
+  if (artsErr) handleError(artsErr);
+
+  // Group by saved_contract_id
+  const articlesByContract: Record<string, { name: string; price: number }[]> = {};
+  for (const row of allArticles ?? []) {
+    if (!articlesByContract[row.saved_contract_id]) articlesByContract[row.saved_contract_id] = [];
+    articlesByContract[row.saved_contract_id].push({
+      name: row.name,
+      price: Number(row.price),
+    });
   }
+
+  for (const contract of contracts) {
+    (contract as any).articles = articlesByContract[contract.id] ?? [];
+  }
+
   return contracts;
 }
 
@@ -481,6 +577,11 @@ export async function deleteSavedContract(id: string): Promise<void> {
 
 // ── Utility ────────────────────────────────────────────────────────
 
+/** Fetch only employees (used on login page) */
+export async function loadEmployees(): Promise<Employee[]> {
+  return getEmployees();
+}
+
 /** Fetch all data in parallel (used on app start) */
 export async function loadAllData() {
   const [articles, clients, employees, locations, reservations, savedContracts] =
@@ -493,6 +594,17 @@ export async function loadAllData() {
       getSavedContracts(),
     ]);
   return { articles, clients, employees, locations, reservations, savedContracts };
+}
+
+/** Delete reservation and all related data (used after validation) */
+export async function deleteReservationFull(id: string): Promise<void> {
+  await supabase.from("reservation_articles").delete().eq("reservation_id", id);
+  await supabase.from("reservation_versements").delete().eq("reservation_id", id);
+  const { error } = await supabase
+    .from("reservations")
+    .delete()
+    .eq("id", id);
+  if (error) handleError(error);
 }
 
 export default {
@@ -514,11 +626,15 @@ export default {
   deleteLocation,
   addVersement,
   deleteVersement,
+  addReservationVersement,
+  deleteReservationVersement,
   getReservations,
   createReservation,
   deleteReservation,
+  deleteReservationFull,
   getSavedContracts,
   saveContract,
   deleteSavedContract,
   loadAllData,
+  loadEmployees,
 };

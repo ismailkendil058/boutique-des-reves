@@ -68,6 +68,8 @@ export interface Reservation {
   occasion: string;
   total: number;
   caution: number;
+  versement: number;
+  versements: Versement[];
   notes?: string;
   createdAt: string;
 }

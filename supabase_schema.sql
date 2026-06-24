@@ -109,9 +109,21 @@ CREATE TABLE reservations (
   occasion occasion_enum NOT NULL,
   total NUMERIC NOT NULL,
   caution NUMERIC NOT NULL,
+  versement NUMERIC NOT NULL DEFAULT 0,
   notes TEXT,
   created_at DATE NOT NULL,
   created_at_ts TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Versements (payments) linked to a reservation
+CREATE TABLE reservation_versements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  reservation_id UUID NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
+  date DATE NOT NULL,
+  amount NUMERIC NOT NULL,
+  type TEXT NOT NULL DEFAULT 'Versement',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -157,6 +169,7 @@ CREATE TRIGGER set_timestamp_employees BEFORE INSERT OR UPDATE ON employees FOR 
 CREATE TRIGGER set_timestamp_locations BEFORE INSERT OR UPDATE ON locations FOR EACH ROW EXECUTE FUNCTION set_timestamp();
 CREATE TRIGGER set_timestamp_versements BEFORE INSERT OR UPDATE ON versements FOR EACH ROW EXECUTE FUNCTION set_timestamp();
 CREATE TRIGGER set_timestamp_reservations BEFORE INSERT OR UPDATE ON reservations FOR EACH ROW EXECUTE FUNCTION set_timestamp();
+CREATE TRIGGER set_timestamp_reservation_versements BEFORE INSERT OR UPDATE ON reservation_versements FOR EACH ROW EXECUTE FUNCTION set_timestamp();
 CREATE TRIGGER set_timestamp_saved_contracts BEFORE INSERT OR UPDATE ON saved_contracts FOR EACH ROW EXECUTE FUNCTION set_timestamp();
 
 -- Indexes for fast look‑ups
@@ -167,6 +180,7 @@ CREATE INDEX idx_versements_location_id ON versements(location_id);
 CREATE INDEX idx_reservations_client_id ON reservations(client_id);
 CREATE INDEX idx_location_articles_article_id ON location_articles(article_id);
 CREATE INDEX idx_reservation_articles_article_id ON reservation_articles(article_id);
+CREATE INDEX idx_reservation_versements_reservation_id ON reservation_versements(reservation_id);
 
 -- RLS Policies (role based)
 -- Enable row level security
@@ -177,6 +191,7 @@ ALTER TABLE locations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE location_articles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE versements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reservations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reservation_versements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reservation_articles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE saved_contracts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE saved_contract_articles ENABLE ROW LEVEL SECURITY;
@@ -189,6 +204,7 @@ CREATE POLICY admin_full_access ON locations USING (auth.role() = 'admin') WITH 
 CREATE POLICY admin_full_access ON location_articles USING (auth.role() = 'admin') WITH CHECK (auth.role() = 'admin');
 CREATE POLICY admin_full_access ON versements USING (auth.role() = 'admin') WITH CHECK (auth.role() = 'admin');
 CREATE POLICY admin_full_access ON reservations USING (auth.role() = 'admin') WITH CHECK (auth.role() = 'admin');
+CREATE POLICY admin_full_access ON reservation_versements USING (auth.role() = 'admin') WITH CHECK (auth.role() = 'admin');
 CREATE POLICY admin_full_access ON reservation_articles USING (auth.role() = 'admin') WITH CHECK (auth.role() = 'admin');
 CREATE POLICY admin_full_access ON saved_contracts USING (auth.role() = 'admin') WITH CHECK (auth.role() = 'admin');
 CREATE POLICY admin_full_access ON saved_contract_articles USING (auth.role() = 'admin') WITH CHECK (auth.role() = 'admin');
@@ -201,6 +217,7 @@ CREATE POLICY employee_read ON locations FOR SELECT USING (auth.role() = 'employ
 CREATE POLICY employee_read ON location_articles FOR SELECT USING (auth.role() = 'employee');
 CREATE POLICY employee_read ON versements FOR SELECT USING (auth.role() = 'employee');
 CREATE POLICY employee_read ON reservations FOR SELECT USING (auth.role() = 'employee');
+CREATE POLICY employee_read ON reservation_versements FOR SELECT USING (auth.role() = 'employee');
 CREATE POLICY employee_read ON reservation_articles FOR SELECT USING (auth.role() = 'employee');
 CREATE POLICY employee_read ON saved_contracts FOR SELECT USING (auth.role() = 'employee');
 CREATE POLICY employee_read ON saved_contract_articles FOR SELECT USING (auth.role() = 'employee');

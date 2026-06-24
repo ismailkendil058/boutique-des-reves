@@ -1,10 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useStore, type Reservation } from "@/lib/store";
 import { formatDA, formatDate, today as todayStr, parseMachta, serializeMachta } from "@/lib/format";
 import { Modal, Drawer, Badge, EmptyState } from "@/components/ui-kit";
 import { Th, Td, FieldLabel } from "./_components/table";
-import { Plus, Trash2, BookMarked, CheckCircle, Search } from "lucide-react";
+import { Plus, Trash2, BookMarked, CheckCircle, Search, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/reservation")({
@@ -105,7 +105,7 @@ function ReservationPage() {
       )}
 
       {newOpen && <NewReservationModal open={newOpen} onClose={() => setNewOpen(false)} />}
-      {openRes && <ReservationDetail reservation={openRes} onClose={() => setOpenRes(null)} />}
+      {openRes && <ReservationDetail reservationId={openRes.id} onClose={() => setOpenRes(null)} />}
     </div>
   );
 }
@@ -128,6 +128,8 @@ function NewReservationModal({ open, onClose }: { open: boolean; onClose: () => 
   const [err, setErr] = useState("");
   const [machtaActive, setMachtaActive] = useState(false);
   const [machtaPrice, setMachtaPrice] = useState(0);
+  const [versement, setVersement] = useState<number | "">("");
+  const [caution, setCaution] = useState<number | "">("");
 
   const totalArticles = articles.filter((a) => selArticles.includes(a.id)).reduce((s, a) => s + (customPrices[a.id] ?? a.price), 0);
   const total = totalArticles + (machtaActive ? machtaPrice : 0);
@@ -136,6 +138,7 @@ function NewReservationModal({ open, onClose }: { open: boolean; onClose: () => 
     if (!clientForm.name.trim()) { setErr("Nom du client requis"); return; }
     if (selArticles.length === 0 && !machtaActive) { setErr("Sélectionnez au moins un article ou le service Machta"); return; }
     if (returnDate < pickupDate) { setErr("Date de retour avant la date de retrait"); return; }
+    if (!versement || Number(versement) <= 0) { setErr("Le versement doit être supérieur à 0 DA"); return; }
 
     try {
       const client = await addClient({
@@ -150,7 +153,7 @@ function NewReservationModal({ open, onClose }: { open: boolean; onClose: () => 
         ? Object.fromEntries(selArticles.map((id) => [id, customPrices[id] ?? articles.find((a) => a.id === id)!.price]))
         : undefined;
 
-      await addReservation({ clientId: client.id, articleIds: selArticles, articlePrices, pickupDate, returnDate, occasion, total, caution: 0, notes: serializeMachta(notes, machtaActive, machtaPrice) });
+      await addReservation({ clientId: client.id, articleIds: selArticles, articlePrices, pickupDate, returnDate, occasion, total, caution: Number(caution) || 0, versement: Number(versement), versements: [], notes: serializeMachta(notes, machtaActive, machtaPrice) });
       toast.success("Réservation créée !");
       onClose();
     } catch (e) {
@@ -178,19 +181,46 @@ function NewReservationModal({ open, onClose }: { open: boolean; onClose: () => 
           </div>
         </Section>
 
-        {/* Articles */}
-        <Section title="2. Articles">
+        {/* Articles - Tenues */}
+        <Section title="2.1. Tenues">
           <div className="relative mb-2">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(26,26,26,0.4)" }} />
             <input
               className="input-field w-full pl-9"
-              placeholder="Rechercher un article..."
+              placeholder="Rechercher une tenue..."
               value={articleSearch}
               onChange={(e) => setArticleSearch(e.target.value)}
             />
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-1">
-            {availableArts.map((a) => {
+            {availableArts.filter((a) => a.category === "Tenues").map((a) => {
+              const sel = selArticles.includes(a.id);
+              return (
+                <button
+                  key={a.id}
+                  onClick={() => {
+                    if (sel) {
+                      setSelArticles(selArticles.filter((x) => x !== a.id));
+                      const next = { ...customPrices }; delete next[a.id]; setCustomPrices(next);
+                    } else {
+                      setSelArticles([...selArticles, a.id]);
+                    }
+                  }}
+                  className="text-left p-3 rounded-lg border transition-colors"
+                  style={{ borderColor: sel ? "#74367E" : "#E5E5E5", background: sel ? "rgba(116,54,126,0.06)" : "white" }}
+                >
+                  <div className="text-sm font-medium truncate">{a.name}</div>
+                  <div className="text-xs" style={{ color: "#74367E" }}>{formatDA(a.price)}</div>
+                </button>
+              );
+            })}
+          </div>
+        </Section>
+
+        {/* Articles - Accessoires */}
+        <Section title="2.2. Accessoires">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-1">
+            {availableArts.filter((a) => a.category === "Accessoires" || a.category === "Autre").map((a) => {
               const sel = selArticles.includes(a.id);
               return (
                 <button
@@ -283,13 +313,57 @@ function NewReservationModal({ open, onClose }: { open: boolean; onClose: () => 
           </div>
         </Section>
 
-        {/* Payment summary (no initial payment for reservations) */}
-        <Section title="4. Récapitulatif">
+        {/* Versement (mandatory > 0) */}
+        <Section title="4. Versement">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <FieldLabel label="Versement">
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  className="input-field flex-1"
+                  placeholder="Versement minimum : 1 DA"
+                  value={versement}
+                  min={1}
+                  onChange={(e) => {
+                    const val = e.target.value === "" ? "" : Number(e.target.value);
+                    setVersement(val);
+                  }}
+                />
+                <span className="text-xs" style={{ color: "rgba(26,26,26,0.45)" }}>DA</span>
+              </div>
+            </FieldLabel>
+            <FieldLabel label="Caution">
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  className="input-field flex-1"
+                  placeholder="Caution (Optionnel)"
+                  value={caution}
+                  min={0}
+                  onChange={(e) => {
+                    const val = e.target.value === "" ? "" : Number(e.target.value);
+                    setCaution(val);
+                  }}
+                />
+                <span className="text-xs" style={{ color: "rgba(26,26,26,0.45)" }}>DA</span>
+              </div>
+            </FieldLabel>
+          </div>
+        </Section>
+
+        {/* Payment summary */}
+        <Section title="5. Récapitulatif">
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span style={{ color: "rgba(26,26,26,0.6)" }}>Total calculé</span>
               <span style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 22, color: "#74367E" }}>{formatDA(total)}</span>
             </div>
+            {versement !== "" && Number(versement) > 0 && (
+              <div className="flex items-center justify-between text-sm">
+                <span style={{ color: "rgba(26,26,26,0.6)" }}>Reste à payer</span>
+                <span style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 18, color: "#D4820A" }}>{formatDA(total - Number(versement))}</span>
+              </div>
+            )}
           </div>
         </Section>
 
@@ -300,26 +374,55 @@ function NewReservationModal({ open, onClose }: { open: boolean; onClose: () => 
 }
 
 // ─── Reservation detail drawer ────────────────────────────
-function ReservationDetail({ reservation, onClose }: { reservation: Reservation; onClose: () => void }) {
+function ReservationDetail({ reservationId, onClose }: { reservationId: string; onClose: () => void }) {
+  const navigate = useNavigate();
+  // Subscribe directly to the store so we always get the latest reservation data
+  const reservation = useStore((s) => s.reservations.find((r) => r.id === reservationId))!;
   const clients = useStore((s) => s.clients);
   const articles = useStore((s) => s.articles);
   const deleteReservation = useStore((s) => s.deleteReservation);
   const validateReservation = useStore((s) => s.validateReservation);
+  const addReservationVersement = useStore((s) => s.addReservationVersement);
+  const deleteReservationVersement = useStore((s) => s.deleteReservationVersement);
   const isAdmin = useStore((s) => s.auth.role === "admin");
 
-  const [validateOpen, setValidateOpen] = useState(false);
-  const [initialPayment, setInitialPayment] = useState(0);
+  const [versementOpen, setVersementOpen] = useState(false);
+  const [newVersementAmount, setNewVersementAmount] = useState<number | "">("");
+
+  if (!reservation) return null;
 
   const client = clients.find((c) => c.id === reservation.clientId);
   const arts = articles.filter((a) => (reservation.articleIds ?? []).includes(a.id));
   const machta = parseMachta(reservation.notes);
+  const reservationVersements = reservation.versements ?? [];
+  const totalAdditionalVersements = reservationVersements.reduce((sum, v) => sum + Number(v.amount ?? 0), 0);
+  const totalVerse = Number(reservation.versement ?? 0) + totalAdditionalVersements;
+  const reste = reservation.total - totalVerse;
 
-  const doValidate = () => {
-    if (initialPayment > reservation.total) return;
-    validateReservation(reservation.id, initialPayment);
+  const doValidate = async () => {
+    if (totalVerse < reservation.total) {
+      toast.error(`Le total des versements (${formatDA(totalVerse)}) doit être égal au total (${formatDA(reservation.total)}) pour valider.`);
+      return;
+    }
+    await validateReservation(reservation.id, reservation.total);
     toast.success("Réservation validée — location créée !");
-    setValidateOpen(false);
     onClose();
+    navigate({ to: "/locations" });
+  };
+
+  const doAddVersement = async () => {
+    if (!newVersementAmount || Number(newVersementAmount) <= 0) {
+      toast.error("Le versement doit être supérieur à 0 DA");
+      return;
+    }
+    await addReservationVersement(reservation.id, {
+      date: todayStr(),
+      amount: Number(newVersementAmount),
+      type: "Versement",
+    });
+    toast.success("Versement ajouté !");
+    setVersementOpen(false);
+    setNewVersementAmount("");
   };
 
   return (
@@ -333,7 +436,7 @@ function ReservationDetail({ reservation, onClose }: { reservation: Reservation;
           <Badge status="En attente" />
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setValidateOpen(true)}
+              onClick={doValidate}
               className="text-sm flex items-center gap-1.5 cursor-pointer"
               style={{ color: "#27AE60", fontWeight: 500 }}
             >
@@ -391,12 +494,69 @@ function ReservationDetail({ reservation, onClose }: { reservation: Reservation;
             <span>Total</span>
             <span style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 20 }}>{formatDA(reservation.total)}</span>
           </div>
+          <div className="flex items-center justify-between text-sm mt-1">
+            <span style={{ color: "rgba(26,26,26,0.6)" }}>Versement initial</span>
+            <span style={{ color: "#27AE60" }}>{formatDA(reservation.versement)}</span>
+          </div>
+            <div className="flex items-center justify-between text-sm mt-1">
+              <span style={{ color: "rgba(26,26,26,0.6)" }}>Total versements</span>
+              <span style={{ color: "#27AE60" }}>{formatDA(totalAdditionalVersements)}</span>
+            </div>
+          <div className="flex items-center justify-between text-sm mt-1 pt-2 border-t" style={{ borderColor: "#E5E5E5" }}>
+            <span style={{ fontWeight: 600 }}>Reste à payer</span>
+            <span style={{ fontFamily: "Cormorant Garamond, serif", fontSize: 18, color: reste > 0 ? "#D4820A" : "#27AE60" }}>{formatDA(reste)}</span>
+          </div>
           {machta.cleanNotes && (
             <div className="mt-3 text-sm pt-3 border-t" style={{ borderColor: "#E5E5E5", color: "rgba(26,26,26,0.65)" }}>
               Notes : {machta.cleanNotes}
             </div>
           )}
         </div>
+
+        {/* Versement history */}
+        <Section title="Historique des versements">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-sm" style={{ color: "rgba(26,26,26,0.6)" }}>
+              {reservationVersements.length} versement(s) — {formatDA(totalVerse)} versé(s)
+            </div>
+            <button
+              onClick={() => setVersementOpen(true)}
+              className="text-sm flex items-center gap-1.5 cursor-pointer px-3 py-1.5 rounded-lg"
+              style={{ color: "#74367E", border: "1px solid #74367E", fontWeight: 500 }}
+            >
+              <CreditCard className="w-4 h-4" /> Ajouter un versement
+            </button>
+          </div>
+          {reservationVersements.length === 0 ? (
+            <div className="text-sm py-3" style={{ color: "rgba(26,26,26,0.45)" }}>Aucun versement enregistré</div>
+          ) : (
+            <ul className="space-y-2">
+              {reservationVersements.map((v) => (
+                <li key={v.id} className="flex items-center justify-between text-sm py-2 border-b" style={{ borderColor: "#E5E5E5" }}>
+                  <div>
+                    <span style={{ color: "rgba(26,26,26,0.6)" }}>{formatDate(v.date)}</span>
+                    <span className="ml-2 text-xs px-2 py-0.5 rounded" style={{ background: "rgba(116,54,126,0.08)", color: "#74367E" }}>{v.type}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span style={{ color: "#27AE60", fontWeight: 500 }}>{formatDA(v.amount)}</span>
+                    <button
+                      onClick={() => {
+                        if (confirm("Supprimer ce versement ?")) {
+                          deleteReservationVersement(reservation.id, v.id);
+                          toast.success("Versement supprimé.");
+                        }
+                      }}
+                      className="cursor-pointer"
+                      style={{ color: "#C0392B" }}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Section>
 
         {/* Client info */}
         <Section title="Client">
@@ -408,27 +568,25 @@ function ReservationDetail({ reservation, onClose }: { reservation: Reservation;
         </Section>
       </div>
 
-      {/* Validate modal */}
+      {/* Add versement modal */}
       <Modal
-        open={validateOpen} onClose={() => setValidateOpen(false)} title="Valider la réservation" size="sm"
+        open={versementOpen} onClose={() => setVersementOpen(false)} title="Ajouter un versement" size="sm"
         footer={<>
-          <button onClick={() => setValidateOpen(false)} className="btn-danger">Annuler</button>
-          <button onClick={doValidate} className="btn-primary flex items-center gap-1.5">
-            <CheckCircle className="w-4 h-4" /> Confirmer → Location
+          <button onClick={() => setVersementOpen(false)} className="btn-danger">Annuler</button>
+          <button onClick={doAddVersement} className="btn-primary flex items-center gap-1.5">
+            <CreditCard className="w-4 h-4" /> Enregistrer
           </button>
         </>}
       >
         <div className="space-y-4 py-2">
-          <p className="text-sm" style={{ color: "rgba(26,26,26,0.7)" }}>
-            Cette réservation sera convertie en location active. Vous pouvez enregistrer un versement initial optionnel.
-          </p>
-          <FieldLabel label={`Versement initial (max ${formatDA(reservation.total)})`}>
+          <FieldLabel label="Montant (DA)">
             <input
-              type="number" className="input-field"
-              value={initialPayment || ""}
-              placeholder="0"
-              max={reservation.total}
-              onChange={(e) => setInitialPayment(Math.min(+e.target.value, reservation.total))}
+              type="number"
+              className="input-field"
+              value={newVersementAmount || ""}
+              placeholder="Montant"
+              min={1}
+              onChange={(e) => setNewVersementAmount(e.target.value === "" ? "" : Number(e.target.value))}
             />
           </FieldLabel>
         </div>
