@@ -5,8 +5,8 @@ import { supabase } from "./supabaseClient";
 import { parseMachta } from "./format";
 
 /** Types imported from the API layer */
-import type { Article, Client, Employee, Location, Reservation, SavedContract, Versement, Category, ArticleStatus } from "./types";
-export type { Article, Client, Employee, Location, Reservation, SavedContract, Versement, Category, ArticleStatus };
+import type { Article, Client, Employee, Location, Note, Reservation, SavedContract, Versement, Category, ArticleStatus } from "./types";
+export type { Article, Client, Employee, Location, Note, Reservation, SavedContract, Versement, Category, ArticleStatus };
 
 /** Calculate remaining amount for a location */
 export const locReste = (loc: Location): number => {
@@ -29,6 +29,7 @@ export interface StoreState {
   employees: Employee[];
   reservations: Reservation[];
   savedContracts: SavedContract[];
+  notes: Note[];
   pendingNewLocationClientId: string | null;
   pendingOpenLocationId: string | null;
   // UI actions
@@ -66,6 +67,10 @@ export interface StoreState {
   saveContract: (locId: string) => Promise<void>;
   deleteSavedContract: (id: string) => Promise<void>;
   loadSavedContracts: () => Promise<void>;
+  // Notes
+  loadNotes: () => Promise<void>;
+  addNote: (n: Omit<Note, "id" | "createdAt">) => Promise<void>;
+  deleteNote: (id: string) => Promise<void>;
   // Reservations
   addReservation: (r: Omit<Reservation, "id" | "createdAt">) => Promise<void>;
   deleteReservation: (id: string) => Promise<void>;
@@ -88,6 +93,7 @@ export const useStore = create<StoreState>((set, get) => ({
   employees: [],
   reservations: [],
   savedContracts: [],
+  notes: [],
   pendingNewLocationClientId: null,
   pendingOpenLocationId: null,
 
@@ -319,6 +325,20 @@ export const useStore = create<StoreState>((set, get) => ({
   loadSavedContracts: async () => {
     const contracts = await api.getSavedContracts();
     set({ savedContracts: contracts });
+  },
+
+  // ---------- Notes ----------
+  loadNotes: async () => {
+    const notes = await api.getNotes();
+    set({ notes });
+  },
+  addNote: async (n) => {
+    const note = await api.createNote(n);
+    set((s) => ({ notes: [note, ...s.notes] }));
+  },
+  deleteNote: async (id) => {
+    await api.deleteNote(id);
+    set((s) => ({ notes: s.notes.filter((n) => n.id !== id) }));
   },
 
   // ---------- Reservations ----------

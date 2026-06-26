@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useStore } from "@/lib/store";
 import { Toaster } from "@/components/ui/sonner";
 import {
-  LayoutDashboard, Package, Users, CalendarDays, Wallet, UserCog, LogOut, FileText, BookMarked, Menu,
+  LayoutDashboard, Package, Users, CalendarDays, Wallet, UserCog, LogOut, FileText, BookMarked, Menu, StickyNote,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_app")({
@@ -16,6 +16,7 @@ const NAV = [
   { to: "/locations", label: "Locations", icon: CalendarDays },
   { to: "/reservation", label: "Réservations", icon: BookMarked },
   { to: "/contract", label: "Contrats", icon: FileText },
+  { to: "/notes", label: "Notes", icon: StickyNote, admin: true },
   { to: "/caisse", label: "Caisse", icon: Wallet, admin: true },
   { to: "/employes", label: "Employés", icon: UserCog, admin: true },
 ];

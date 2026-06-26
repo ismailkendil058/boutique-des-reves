@@ -5,6 +5,7 @@ import type {
   Client,
   Employee,
   Location,
+  Note,
   Reservation,
   SavedContract,
   Versement,
@@ -34,6 +35,8 @@ const CAMEL_TO_SNAKE: Record<string, string> = {
   clientName: "client_name",
   clientPhone: "client_phone",
   savedAt: "saved_at",
+  articleId: "article_id",
+  articleName: "article_name",
 };
 
 const SNAKE_TO_CAMEL: Record<string, string> = Object.fromEntries(
@@ -607,6 +610,38 @@ export async function deleteReservationFull(id: string): Promise<void> {
   if (error) handleError(error);
 }
 
+// ── NOTES ─────────────────────────────────────────────────────────
+
+export async function getNotes(): Promise<Note[]> {
+  const { data, error } = await supabase
+    .from("notes")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) handleError(error);
+  return (data ?? []).map((r: any) => fromDB(r)) as Note[];
+}
+
+export async function createNote(
+  note: Omit<Note, "id" | "createdAt">,
+): Promise<Note> {
+  const payload = toDB({
+    ...note,
+    createdAt: new Date().toISOString(),
+  });
+  const { data, error } = await supabase
+    .from("notes")
+    .insert(payload)
+    .select()
+    .single();
+  if (error) handleError(error);
+  return fromDB(data) as any;
+}
+
+export async function deleteNote(id: string): Promise<void> {
+  const { error } = await supabase.from("notes").delete().eq("id", id);
+  if (error) handleError(error);
+}
+
 export default {
   getArticles,
   createArticle,
@@ -637,4 +672,7 @@ export default {
   deleteSavedContract,
   loadAllData,
   loadEmployees,
+  getNotes,
+  createNote,
+  deleteNote,
 };

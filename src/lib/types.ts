@@ -95,3 +95,12 @@ export interface SavedContract {
   savedAt: string;
   articles: SavedContractArticle[];
 }
+
+export interface Note {
+  id: string;
+  articleId: string;
+  articleName: string;
+  message: string;
+  date: string;
+  createdAt: string;
+}

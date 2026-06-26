@@ -15,6 +15,7 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppStockRouteImport } from './routes/_app.stock'
 import { Route as AppReservationRouteImport } from './routes/_app.reservation'
+import { Route as AppNotesRouteImport } from './routes/_app.notes'
 import { Route as AppLocationsRouteImport } from './routes/_app.locations'
 import { Route as AppEmployesRouteImport } from './routes/_app.employes'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
@@ -48,6 +49,11 @@ const AppStockRoute = AppStockRouteImport.update({
 const AppReservationRoute = AppReservationRouteImport.update({
   id: '/reservation',
   path: '/reservation',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppNotesRoute = AppNotesRouteImport.update({
+  id: '/notes',
+  path: '/notes',
   getParentRoute: () => AppRoute,
 } as any)
 const AppLocationsRoute = AppLocationsRouteImport.update({
@@ -85,6 +91,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AppDashboardRoute
   '/employes': typeof AppEmployesRoute
   '/locations': typeof AppLocationsRoute
+  '/notes': typeof AppNotesRoute
   '/reservation': typeof AppReservationRoute
   '/stock': typeof AppStockRoute
 }
@@ -97,6 +104,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AppDashboardRoute
   '/employes': typeof AppEmployesRoute
   '/locations': typeof AppLocationsRoute
+  '/notes': typeof AppNotesRoute
   '/reservation': typeof AppReservationRoute
   '/stock': typeof AppStockRoute
 }
@@ -111,6 +119,7 @@ export interface FileRoutesById {
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/employes': typeof AppEmployesRoute
   '/_app/locations': typeof AppLocationsRoute
+  '/_app/notes': typeof AppNotesRoute
   '/_app/reservation': typeof AppReservationRoute
   '/_app/stock': typeof AppStockRoute
 }
@@ -125,6 +134,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/employes'
     | '/locations'
+    | '/notes'
     | '/reservation'
     | '/stock'
   fileRoutesByTo: FileRoutesByTo
@@ -137,6 +147,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/employes'
     | '/locations'
+    | '/notes'
     | '/reservation'
     | '/stock'
   id:
@@ -150,6 +161,7 @@ export interface FileRouteTypes {
     | '/_app/dashboard'
     | '/_app/employes'
     | '/_app/locations'
+    | '/_app/notes'
     | '/_app/reservation'
     | '/_app/stock'
   fileRoutesById: FileRoutesById
@@ -205,6 +217,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppReservationRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/notes': {
+      id: '/_app/notes'
+      path: '/notes'
+      fullPath: '/notes'
+      preLoaderRoute: typeof AppNotesRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/locations': {
       id: '/_app/locations'
       path: '/locations'
@@ -249,6 +268,7 @@ interface AppRouteChildren {
   AppDashboardRoute: typeof AppDashboardRoute
   AppEmployesRoute: typeof AppEmployesRoute
   AppLocationsRoute: typeof AppLocationsRoute
+  AppNotesRoute: typeof AppNotesRoute
   AppReservationRoute: typeof AppReservationRoute
   AppStockRoute: typeof AppStockRoute
 }
@@ -259,6 +279,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppDashboardRoute: AppDashboardRoute,
   AppEmployesRoute: AppEmployesRoute,
   AppLocationsRoute: AppLocationsRoute,
+  AppNotesRoute: AppNotesRoute,
   AppReservationRoute: AppReservationRoute,
   AppStockRoute: AppStockRoute,
 }

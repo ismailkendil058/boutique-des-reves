@@ -6,6 +6,12 @@ import { formatDA, formatDate } from "@/lib/format";
 import { Drawer, Badge, EmptyState, Modal } from "@/components/ui-kit";
 import { Plus, MoreVertical, Package, Search, X } from "lucide-react";
 
+function formatDateShort(d: string) {
+  if (!d) return "";
+  const date = new Date(d);
+  return date.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
 export const Route = createFileRoute("/_app/stock")({
   component: StockPage,
 });
@@ -29,6 +35,11 @@ function StockPage() {
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [infoOpen, setInfoOpen] = useState(false);
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
+  // Note modal state
+  const [noteModalOpen, setNoteModalOpen] = useState(false);
+  const [noteArticle, setNoteArticle] = useState<Article | null>(null);
+  const [noteMessage, setNoteMessage] = useState("");
+  const addNote = useStore((s) => s.addNote);
 
   const q = search.trim().toLowerCase();
   const filtered = articles.filter((a) => {
@@ -120,8 +131,18 @@ function StockPage() {
                   {menuFor === a.id && (
                     <div className="absolute right-0 top-7 z-10 bg-white border rounded-lg shadow-lg w-44 py-1" style={{ borderColor: "#E5E5E5" }}>
                       <button onClick={(e) => { e.stopPropagation(); openEdit(a); }} className="w-full text-left px-3 py-2 text-sm hover:bg-[rgba(116,54,126,0.04)]">Modifier</button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); updateArticle(a.id, { status: a.status === "En entretien" ? "Disponible" : "En entretien" }); setMenuFor(null); }}
+                       <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMenuFor(null);
+                          if (a.status === "En entretien") {
+                            updateArticle(a.id, { status: "Disponible" });
+                          } else {
+                            setNoteArticle(a);
+                            setNoteMessage("");
+                            setNoteModalOpen(true);
+                          }
+                        }}
                         className="w-full text-left px-3 py-2 text-sm hover:bg-[rgba(116,54,126,0.04)]"
                       >
                         {a.status === "En entretien" ? "Marquer disponible" : "Marquer indisponible"}
@@ -154,6 +175,58 @@ function StockPage() {
           setDrawerOpen(false);
         }}
       />
+      {/* Note modal for "Marquer indisponible" */}
+      <Modal
+        open={noteModalOpen}
+        onClose={() => setNoteModalOpen(false)}
+        title="Note d'indisponibilité"
+        footer={
+          <>
+            <button onClick={() => setNoteModalOpen(false)} className="btn-danger">Annuler</button>
+            <button
+              className="btn-primary"
+              onClick={async () => {
+                if (!noteArticle) return;
+                await updateArticle(noteArticle.id, { status: "En entretien" });
+                const today = new Date().toISOString().slice(0, 10);
+                await addNote({
+                  articleId: noteArticle.id,
+                  articleName: noteArticle.name,
+                  message: noteMessage.trim(),
+                  date: today,
+                });
+                setNoteModalOpen(false);
+                setNoteArticle(null);
+                setNoteMessage("");
+              }}
+            >
+              Enregistrer
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="text-sm" style={{ color: "rgba(26,26,26,0.6)" }}>
+            Article : <strong>{noteArticle?.name}</strong>
+          </div>
+          <label className="block">
+            <span className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: "#74367E" }}>
+              Note (optionnel)
+            </span>
+            <textarea
+              className="input-field w-full"
+              rows={3}
+              placeholder="Raison de l'indisponibilité..."
+              value={noteMessage}
+              onChange={(e) => setNoteMessage(e.target.value)}
+            />
+          </label>
+          <div className="text-xs" style={{ color: "rgba(26,26,26,0.4)" }}>
+            Date : {formatDateShort(new Date().toISOString().slice(0, 10))}
+          </div>
+        </div>
+      </Modal>
+
       <Modal open={infoOpen} onClose={() => setInfoOpen(false)} title={selectedReservation ? "Réservation" : "Disponibilité"}>
         {selectedReservation ? (
           <div className="space-y-4">
