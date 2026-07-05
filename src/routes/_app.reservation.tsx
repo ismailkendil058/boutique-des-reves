@@ -22,6 +22,7 @@ function ReservationPage() {
   const clients = useStore((s) => s.clients);
   const articles = useStore((s) => s.articles);
 
+  const [reservationSearch, setReservationSearch] = useState("");
   const [newOpen, setNewOpen] = useState(false);
   const [openRes, setOpenRes] = useState<Reservation | null>(null);
 
@@ -34,75 +35,100 @@ function ReservationPage() {
         </button>
       </div>
 
-      {reservations.length === 0 ? (
-        <EmptyState
-          icon={<BookMarked className="w-12 h-12" />}
-          title="Aucune réservation en attente"
-          cta="+ Nouvelle réservation"
-          onCta={() => setNewOpen(true)}
-        />
-      ) : (
-        <div className="card-surface" style={{ padding: 0, overflow: "hidden" }}>
-          {/* Desktop table */}
-          <table className="hidden md:table w-full text-sm">
-            <thead>
-              <tr style={{ borderBottom: "2px solid #E5E5E5", background: "#FAFAFA" }}>
-                <Th>Client</Th>
-                <Th>Article(s)</Th>
-                <Th>Retrait prévu</Th>
-                <Th>Retour prévu</Th>
-                <Th>Total</Th>
-                <Th>Statut</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {reservations.map((r) => {
+      {(() => {
+        const q = reservationSearch.trim().toLowerCase();
+        const visible = q ? reservations.filter((r) => {
+          const client = clients.find((c) => c.id === r.clientId);
+          const machta = parseMachta(r.notes);
+          const arts = articles.filter((a) => (r.articleIds ?? []).includes(a.id)).map((a) => a.name).join(", ");
+          const hay = `${client?.name ?? ""} ${arts} ${machta.active ? "Service Machta" : ""}`.toLowerCase();
+          return hay.includes(q);
+        }) : reservations;
+
+        if (visible.length === 0) {
+          return (
+            <EmptyState
+              icon={<BookMarked className="w-12 h-12" />}
+              title={q ? "Aucun résultat" : "Aucune réservation en attente"}
+              cta="+ Nouvelle réservation"
+              onCta={() => setNewOpen(true)}
+            />
+          );
+        }
+
+        return (
+          <div className="card-surface" style={{ padding: 0, overflow: "hidden" }}>
+            {/* Desktop table */}
+            <table className="hidden md:table w-full text-sm">
+              <thead>
+                <tr style={{ borderBottom: "2px solid #E5E5E5", background: "#FAFAFA" }}>
+                  <Th>Client</Th>
+                  <Th>Article(s)</Th>
+                  <Th>Retrait prévu</Th>
+                  <Th>Retour prévu</Th>
+                  <Th>Total</Th>
+                  <Th>Statut</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((r) => {
+                  const client = clients.find((c) => c.id === r.clientId);
+                  const machta = parseMachta(r.notes);
+                  const arts = articles.filter((a) => (r.articleIds ?? []).includes(a.id)).map((a) => a.name).join(", ") || (machta.active ? "Service Machta" : "Aucun");
+                  return (
+                    <tr
+                      key={r.id}
+                      onClick={() => setOpenRes(r)}
+                      className="cursor-pointer hover:bg-[rgba(116,54,126,0.04)]"
+                      style={{ borderBottom: "1px solid #E5E5E5", borderLeft: "3px solid #D4820A" }}
+                    >
+                      <Td>{client?.name}</Td>
+                      <Td>{arts}</Td>
+                      <Td>{formatDate(r.pickupDate)}</Td>
+                      <Td>{formatDate(r.returnDate)}</Td>
+                      <Td>{formatDA(r.total)}</Td>
+                      <Td><Badge status="En attente" /></Td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            {/* Mobile cards */}
+            <div className="md:hidden divide-y" style={{ borderColor: "#E5E5E5" }}>
+              {visible.map((r) => {
                 const client = clients.find((c) => c.id === r.clientId);
-                const machta = parseMachta(r.notes);
-                const arts = articles.filter((a) => (r.articleIds ?? []).includes(a.id)).map((a) => a.name).join(", ") || (machta.active ? "Service Machta" : "Aucun");
                 return (
-                  <tr
+                  <div
                     key={r.id}
                     onClick={() => setOpenRes(r)}
-                    className="cursor-pointer hover:bg-[rgba(116,54,126,0.04)]"
-                    style={{ borderBottom: "1px solid #E5E5E5", borderLeft: "3px solid #D4820A" }}
+                    className="p-4 flex items-start justify-between gap-3"
+                    style={{ borderLeft: "3px solid #D4820A" }}
                   >
-                    <Td>{client?.name}</Td>
-                    <Td>{arts}</Td>
-                    <Td>{formatDate(r.pickupDate)}</Td>
-                    <Td>{formatDate(r.returnDate)}</Td>
-                    <Td>{formatDA(r.total)}</Td>
-                    <Td><Badge status="En attente" /></Td>
-                  </tr>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium">{client?.name}</div>
+                      <div className="text-xs mt-0.5" style={{ color: "rgba(26,26,26,0.55)" }}>
+                        Retrait {formatDate(r.pickupDate)} · {formatDA(r.total)}
+                      </div>
+                    </div>
+                    <Badge status="En attente" />
+                  </div>
                 );
               })}
-            </tbody>
-          </table>
-
-          {/* Mobile cards */}
-          <div className="md:hidden divide-y" style={{ borderColor: "#E5E5E5" }}>
-            {reservations.map((r) => {
-              const client = clients.find((c) => c.id === r.clientId);
-              return (
-                <div
-                  key={r.id}
-                  onClick={() => setOpenRes(r)}
-                  className="p-4 flex items-start justify-between gap-3"
-                  style={{ borderLeft: "3px solid #D4820A" }}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium">{client?.name}</div>
-                    <div className="text-xs mt-0.5" style={{ color: "rgba(26,26,26,0.55)" }}>
-                      Retrait {formatDate(r.pickupDate)} · {formatDA(r.total)}
-                    </div>
-                  </div>
-                  <Badge status="En attente" />
-                </div>
-              );
-            })}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
+
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(26,26,26,0.4)" }} />
+        <input
+          className="input-field w-full pl-9"
+          placeholder="Rechercher par client ou article..."
+          value={reservationSearch}
+          onChange={(e) => setReservationSearch(e.target.value)}
+        />
+      </div>
 
       {newOpen && <NewReservationModal open={newOpen} onClose={() => setNewOpen(false)} />}
       {openRes && <ReservationDetail reservationId={openRes.id} onClose={() => setOpenRes(null)} />}

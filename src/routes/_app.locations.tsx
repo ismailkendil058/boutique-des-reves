@@ -16,8 +16,8 @@ export const Route = createFileRoute("/_app/locations")({
   component: LocationsPage,
 });
 
-type Tab = "En cours" | "À venir" | "Rendues" | "En retard";
-const TABS: Tab[] = ["En cours", "À venir", "Rendues", "En retard"];
+type Tab = "En cours" | "Rendues" | "En retard";
+const TABS: Tab[] = ["En cours", "Rendues", "En retard"];
 
 function LocationsPage() {
   const locations = useStore((s) => s.locations);
@@ -30,6 +30,7 @@ function LocationsPage() {
   const isAdmin = useStore((s) => s.auth.role === "admin");
 
   const [tab, setTab] = useState<Tab>("En cours");
+  const [clientSearch, setClientSearch] = useState("");
   const [newOpen, setNewOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [prefillClient, setPrefillClient] = useState<string | null>(null);
@@ -51,6 +52,17 @@ function LocationsPage() {
 
   const filtered = locations.filter((l) => {
     if (tab === "Rendues") return l.status === "Rendue";
+
+    const isOverdue = l.returnDate < todayStr();
+
+    if (tab === "En retard") {
+      return (l.status === "En retard" || isOverdue) && l.status !== "Rendue";
+    }
+
+    if (tab === "En cours") {
+      return l.status === "En cours" && !isOverdue;
+    }
+
     return l.status === tab;
   });
 
@@ -88,6 +100,16 @@ function LocationsPage() {
         })}
       </div>
 
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(26,26,26,0.4)" }} />
+        <input
+          className="input-field w-full pl-9"
+          placeholder="Rechercher par client ou article..."
+          value={clientSearch}
+          onChange={(e) => setClientSearch(e.target.value)}
+        />
+      </div>
+
       {filtered.length === 0 ? (
         <EmptyState icon={<CalendarDays className="w-12 h-12" />} title={`Aucune location ${tab.toLowerCase()}`} />
       ) : (
@@ -104,7 +126,9 @@ function LocationsPage() {
                 const machta = parseMachta(l.notes);
                 const arts = articles.filter((a) => (l.articleIds ?? []).includes(a.id)).map((a) => a.name).join(", ") || (machta.active ? "Service Machta" : "Aucun");
                 const reste = locReste(l);
-                const overdue = l.status === "En retard";
+                const isOverdue = l.returnDate < todayStr();
+                const displayStatus = (isOverdue && l.status !== "Rendue") ? "En retard" : l.status;
+                const overdue = displayStatus === "En retard";
                 return (
                   <tr
                     key={l.id}
@@ -121,7 +145,7 @@ function LocationsPage() {
                     <Td>{formatDate(l.returnDate)}</Td>
                     <Td>{formatDA(l.total)}</Td>
                     <Td style={{ color: reste > 0 ? "#74367E" : "rgba(26,26,26,0.45)", fontWeight: reste > 0 ? 500 : 400 }}>{formatDA(reste)}</Td>
-                    <Td><Badge status={l.status} /></Td>
+                    <Td><Badge status={displayStatus} /></Td>
                   </tr>
                 );
               })}
@@ -132,9 +156,11 @@ function LocationsPage() {
             {filtered.map((l) => {
               const client = clients.find((c) => c.id === l.clientId);
               const reste = locReste(l);
+              const isOverdue = l.returnDate < todayStr();
+              const displayStatus = (isOverdue && l.status !== "Rendue") ? "En retard" : l.status;
               return (
                 <div key={l.id} onClick={() => setOpenId(l.id)} className="p-4 flex items-start justify-between gap-3"
-                  style={{ borderLeft: l.status === "En retard" ? "3px solid #C0392B" : "3px solid transparent" }}>
+                  style={{ borderLeft: displayStatus === "En retard" ? "3px solid #C0392B" : "3px solid transparent" }}>
                   <div className="min-w-0 flex-1">
                     <div className="font-medium">{client?.name}</div>
                     <div className="text-xs mt-0.5" style={{ color: "rgba(26,26,26,0.55)" }}>
@@ -142,7 +168,7 @@ function LocationsPage() {
                     </div>
                     {reste > 0 && <div className="text-sm mt-1" style={{ color: "#74367E", fontWeight: 500 }}>Reste : {formatDA(reste)}</div>}
                   </div>
-                  <Badge status={l.status} />
+                  <Badge status={displayStatus} />
                 </div>
               );
             })}
