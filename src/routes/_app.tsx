@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { useStore } from "@/lib/store";
 import { Toaster } from "@/components/ui/sonner";
 import {
@@ -27,6 +28,7 @@ function AppLayout() {
   const logout = useStore((s) => s.logout);
   const path = useRouterState({ select: (s) => s.location.pathname });
   const [mobileOpen, setMobileOpen] = useState(false);
+  const channelRef = useRef<RealtimeChannel | null>(null);
 
   const openMobile = useCallback(() => setMobileOpen(true), []);
   const closeMobile = useCallback(() => setMobileOpen(false), []);
@@ -36,15 +38,24 @@ function AppLayout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth.role]);
 
-  // Load all data from Supabase after authentication + auto-refresh every 2s
+  // Load all data once on auth, then subscribe to realtime changes instead of polling
   useEffect(() => {
-    if (auth.role) {
-      useStore.getState().loadAllData();
-      const interval = setInterval(() => {
-        useStore.getState().loadAllData();
-      }, 2000);
-      return () => clearInterval(interval);
-    }
+    if (!auth.role) return;
+
+    const store = useStore.getState();
+
+    // Initial full load
+    store.loadAllData();
+
+    // Subscribe to realtime – updates only when DB rows actually change
+    channelRef.current = store.subscribeToRealtime();
+
+    return () => {
+      if (channelRef.current) {
+        store.unsubscribeFromRealtime(channelRef.current);
+        channelRef.current = null;
+      }
+    };
   }, [auth.role]);
 
   if (!auth.role) return null;

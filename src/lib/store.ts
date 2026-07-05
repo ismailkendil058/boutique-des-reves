@@ -1,5 +1,6 @@
 // src/lib/store.ts
 import { create } from "zustand";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import api from "./api";
 import { supabase } from "./supabaseClient";
 import { parseMachta } from "./format";
@@ -44,6 +45,9 @@ export interface StoreState {
   // Data loading
   loadAllData: () => Promise<void>;
   loadEmployees: () => Promise<void>;
+  // Realtime subscriptions
+  subscribeToRealtime: () => RealtimeChannel;
+  unsubscribeFromRealtime: (channel: RealtimeChannel) => Promise<void>;
   // CRUD actions – async proxy to API
   addArticle: (a: Omit<Article, "id">) => Promise<void>;
   updateArticle: (id: string, a: Partial<Article>) => Promise<void>;
@@ -151,6 +155,122 @@ export const useStore = create<StoreState>((set, get) => ({
   loadEmployees: async () => {
     const employees = await api.loadEmployees();
     set({ employees });
+  },
+
+  // ---------- Realtime ----------
+  subscribeToRealtime: () => {
+    const channel = supabase
+      .channel("app-realtime")
+      // ── Articles ──────────────────────────────────────────────
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "articles" },
+        async () => {
+          const articles = await api.getArticles();
+          set({ articles });
+        },
+      )
+      // ── Clients ───────────────────────────────────────────────
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "clients" },
+        async () => {
+          const clients = await api.getClients();
+          set({ clients });
+        },
+      )
+      // ── Employees ─────────────────────────────────────────────
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "employees" },
+        async () => {
+          const employees = await api.getEmployees();
+          set({ employees });
+        },
+      )
+      // ── Locations (parent + junctions + versements) ───────────
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "locations" },
+        async () => {
+          const locations = await api.getLocations();
+          set({ locations });
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "location_articles" },
+        async () => {
+          const locations = await api.getLocations();
+          set({ locations });
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "versements" },
+        async () => {
+          const locations = await api.getLocations();
+          set({ locations });
+        },
+      )
+      // ── Reservations (parent + junctions + versements) ────────
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "reservations" },
+        async () => {
+          const reservations = await api.getReservations();
+          set({ reservations });
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "reservation_articles" },
+        async () => {
+          const reservations = await api.getReservations();
+          set({ reservations });
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "reservation_versements" },
+        async () => {
+          const reservations = await api.getReservations();
+          set({ reservations });
+        },
+      )
+      // ── Saved contracts (parent + articles junction) ──────────
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "saved_contracts" },
+        async () => {
+          const savedContracts = await api.getSavedContracts();
+          set({ savedContracts });
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "saved_contract_articles" },
+        async () => {
+          const savedContracts = await api.getSavedContracts();
+          set({ savedContracts });
+        },
+      )
+      // ── Notes ─────────────────────────────────────────────────
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "notes" },
+        async () => {
+          const notes = await api.getNotes();
+          set({ notes });
+        },
+      )
+      .subscribe();
+
+    return channel;
+  },
+
+  unsubscribeFromRealtime: async (channel) => {
+    await supabase.removeChannel(channel);
   },
 
   // ---------- CRUD ----------
