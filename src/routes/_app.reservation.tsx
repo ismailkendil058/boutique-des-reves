@@ -4,7 +4,7 @@ import { useStore, type Reservation } from "@/lib/store";
 import { formatDA, formatDate, today as todayStr, parseMachta, serializeMachta } from "@/lib/format";
 import { Modal, Drawer, Badge, EmptyState } from "@/components/ui-kit";
 import { Th, Td, FieldLabel } from "./_components/table";
-import { Plus, Trash2, BookMarked, CheckCircle, Search, CreditCard } from "lucide-react";
+import { Plus, Trash2, BookMarked, CheckCircle, Search, CreditCard, Printer } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/reservation")({
@@ -33,6 +33,16 @@ function ReservationPage() {
         <button onClick={() => setNewOpen(true)} className="btn-primary">
           <Plus className="w-4 h-4" /> Nouvelle réservation
         </button>
+      </div>
+
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(26,26,26,0.4)" }} />
+        <input
+          className="input-field w-full pl-9"
+          placeholder="Rechercher par client ou article..."
+          value={reservationSearch}
+          onChange={(e) => setReservationSearch(e.target.value)}
+        />
       </div>
 
       {(() => {
@@ -119,16 +129,6 @@ function ReservationPage() {
           </div>
         );
       })()}
-
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(26,26,26,0.4)" }} />
-        <input
-          className="input-field w-full pl-9"
-          placeholder="Rechercher par client ou article..."
-          value={reservationSearch}
-          onChange={(e) => setReservationSearch(e.target.value)}
-        />
-      </div>
 
       {newOpen && <NewReservationModal open={newOpen} onClose={() => setNewOpen(false)} />}
       {openRes && <ReservationDetail reservationId={openRes.id} onClose={() => setOpenRes(null)} />}
@@ -402,7 +402,6 @@ function NewReservationModal({ open, onClose }: { open: boolean; onClose: () => 
 // ─── Reservation detail drawer ────────────────────────────
 function ReservationDetail({ reservationId, onClose }: { reservationId: string; onClose: () => void }) {
   const navigate = useNavigate();
-  // Subscribe directly to the store so we always get the latest reservation data
   const reservation = useStore((s) => s.reservations.find((r) => r.id === reservationId))!;
   const clients = useStore((s) => s.clients);
   const articles = useStore((s) => s.articles);
@@ -467,6 +466,14 @@ function ReservationDetail({ reservationId, onClose }: { reservationId: string; 
               style={{ color: "#27AE60", fontWeight: 500 }}
             >
               <CheckCircle className="w-4 h-4" /> Valider → Location
+            </button>
+            <button
+              onClick={() => window.print()}
+              className="cursor-pointer p-1.5 rounded-md hover:bg-[rgba(116,54,126,0.08)] transition-colors"
+              style={{ color: "#74367E" }}
+              title="Imprimer le contrat de réservation"
+            >
+              <Printer className="w-4 h-4" />
             </button>
             {isAdmin && (
               <button
@@ -565,18 +572,19 @@ function ReservationDetail({ reservationId, onClose }: { reservationId: string; 
                   </div>
                   <div className="flex items-center gap-2">
                     <span style={{ color: "#27AE60", fontWeight: 500 }}>{formatDA(v.amount)}</span>
-                    <button
-                      onClick={() => {
-                        if (confirm("Supprimer ce versement ?")) {
-                          deleteReservationVersement(reservation.id, v.id);
-                          toast.success("Versement supprimé.");
-                        }
-                      }}
-                      className="cursor-pointer"
-                      style={{ color: "#C0392B" }}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                      <button
+                        onClick={() => {
+                          if (confirm("Supprimer ce versement ?")) {
+                            deleteReservationVersement(reservation.id, v.id);
+                            toast.success("Versement supprimé.");
+                          }
+                        }}
+                        className="cursor-pointer"
+                        style={{ color: "#C0392B" }}
+                        title="Supprimer le versement"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                   </div>
                 </li>
               ))}
@@ -593,6 +601,12 @@ function ReservationDetail({ reservationId, onClose }: { reservationId: string; 
           </div>
         </Section>
       </div>
+
+      {/* Print reservation contract — visible only when printing */}
+      <div className="print-area" style={{ display: "none" }}>
+        <PrintReservationContract reservation={reservation} />
+      </div>
+      <style>{`@media print { .print-area { display: block !important; } }`}</style>
 
       {/* Add versement modal */}
       <Modal
@@ -618,6 +632,114 @@ function ReservationDetail({ reservationId, onClose }: { reservationId: string; 
         </div>
       </Modal>
     </Drawer>
+  );
+}
+
+function PrintReservationContract({ reservation }: { reservation: Reservation }) {
+  const clients = useStore((s) => s.clients);
+  const articles = useStore((s) => s.articles);
+  const client = clients.find((c) => c.id === reservation.clientId);
+  const arts = articles.filter((a) => (reservation.articleIds ?? []).includes(a.id));
+  const machta = parseMachta(reservation.notes);
+  const reservationVersements = reservation.versements ?? [];
+  const totalAdditionalVersements = reservationVersements.reduce((sum, v) => sum + Number(v.amount ?? 0), 0);
+  const totalVerse = Number(reservation.versement ?? 0) + totalAdditionalVersements;
+  const reste = reservation.total - totalVerse;
+
+  return (
+    <div style={{ fontFamily: "DM Sans, sans-serif", color: "#1A1A1A", fontSize: 13, lineHeight: 1.4, height: "100%", position: "relative", boxSizing: "border-box" }}>
+      <div style={{ textAlign: "center", paddingBottom: 12, borderBottom: "2px solid #74367E" }}>
+        <div style={{ fontFamily: "Cormorant Garamond, serif", fontStyle: "italic", fontSize: 26, color: "#74367E", letterSpacing: "0.15em" }}>
+          Boutique des Rêves
+        </div>
+        <div style={{ fontSize: 11, marginTop: 2, color: "rgba(26,26,26,0.6)" }}>Contrat de réservation</div>
+      </div>
+
+      <div style={{ marginTop: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flexWrap: "wrap", fontSize: 11, color: "#000000" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+            <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+            <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+            <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+          </svg>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+            <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" />
+          </svg>
+          <strong style={{ fontWeight: 600 }}>boutique_des_reves_</strong>
+        </span>
+        <span>·</span>
+        <span>Contact : 0774 22 39 50</span>
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        <strong>Client :</strong> {client?.name}<br />
+        <strong>Téléphone :</strong> {client?.phone}<br />
+        {client?.address && <><strong>Adresse :</strong> {client.address}<br /></>}
+      </div>
+
+      <table style={{ width: "100%", marginTop: 16, borderCollapse: "collapse" }}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid #E5E5E5" }}>
+            <th style={{ textAlign: "left", padding: "6px 8px" }}>Article</th>
+            <th style={{ textAlign: "right", padding: "6px 8px" }}>Prix</th>
+          </tr>
+        </thead>
+        <tbody>
+          {arts.map((a) => (
+            <tr key={a.id} style={{ borderBottom: "1px solid #E5E5E5" }}>
+              <td style={{ padding: "6px 8px" }}>{a.name}</td>
+              <td style={{ padding: "6px 8px", textAlign: "right" }}>{formatDA(getResArticlePrice(reservation, a.id, a.price))}</td>
+            </tr>
+          ))}
+          {machta.active && (
+            <tr style={{ borderBottom: "1px solid #E5E5E5" }}>
+              <td style={{ padding: "6px 8px" }}>Service Machta</td>
+              <td style={{ padding: "6px 8px", textAlign: "right" }}>{formatDA(machta.price)}</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+
+      <div style={{ marginTop: 16 }}>
+        <div>Retrait prévu : {formatDate(reservation.pickupDate)}</div>
+        <div>Retour prévu : {formatDate(reservation.returnDate)}</div>
+        <div>Occasion : {reservation.occasion}</div>
+      </div>
+
+      <div style={{ marginTop: 16, padding: 12, border: "1px solid #E5E5E5", borderRadius: 8, textAlign: "center" }}>
+        <div>Total : <strong>{formatDA(reservation.total)}</strong></div>
+        <div>Versé : {formatDA(totalVerse)}</div>
+        <div>Reste : <strong style={{ color: "#74367E" }}>{formatDA(reste)}</strong></div>
+        {reservation.caution > 0 && <div>Caution : <strong>{formatDA(reservation.caution)}</strong></div>}
+      </div>
+
+      <div style={{ marginTop: 32 }}>
+        Signature client : _________________________   Date : {formatDate(reservation.pickupDate)}
+      </div>
+
+      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, fontSize: 10, textAlign: "center", color: "rgba(26,26,26,0.55)", lineHeight: 1.5 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flexWrap: "wrap" }}>
+          <span>Les versements effectués ne sont pas remboursables. · Pièce d'identité obligatoire.</span>
+          <span style={{ color: "rgba(26,26,26,0.3)" }}>|</span>
+          <span dir="rtl">المبالغ المدفوعة غير قابلة للاسترداد. · بطاقة الهوية إجبارية.</span>
+        </div>
+        <div style={{ marginTop: 8, borderTop: "1px solid #E5E5E5", paddingTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+              <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+              <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+            </svg>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" />
+            </svg>
+            <strong style={{ fontWeight: 600 }}>boutique_des_reves_</strong>
+          </span>
+          <span style={{ color: "rgba(26,26,26,0.3)" }}>·</span>
+          <span>Contact : 0774 22 39 50</span>
+        </div>
+      </div>
+    </div>
   );
 }
 

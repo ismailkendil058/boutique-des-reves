@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useStore, type SavedContract } from "@/lib/store";
 import { formatDA, formatDate } from "@/lib/format";
 import { Th, Td } from "./_components/table";
-import { Printer, Trash2, Eye, FileText } from "lucide-react";
+import { Printer, Trash2, Eye, FileText, Search } from "lucide-react";
 import { Modal, EmptyState } from "@/components/ui-kit";
 import { toast } from "sonner";
 
@@ -18,6 +18,7 @@ function ContractPage() {
   const isAdmin = useStore((s) => s.auth.role === "admin");
 
   const [selectedContract, setSelectedContract] = useState<SavedContract | null>(null);
+  const [contractSearch, setContractSearch] = useState("");
 
   useEffect(() => {
     loadSavedContracts();
@@ -30,103 +31,130 @@ function ContractPage() {
         <h1 className="page-title">Contrats Sauvegardés</h1>
       </div>
 
-      {savedContracts.length === 0 ? (
-        <EmptyState icon={<FileText className="w-12 h-12" />} title="Aucun contrat sauvegardé" />
-      ) : (
-        <div className="card-surface" style={{ padding: 0, overflow: "hidden" }}>
-          <table className="hidden md:table w-full text-sm">
-            <thead>
-              <tr style={{ borderBottom: "2px solid #E5E5E5", background: "#FAFAFA" }}>
-                <Th>Date Sauvegarde</Th>
-                <Th>Client</Th>
-                <Th>Articles</Th>
-                <Th>Total</Th>
-                <Th>Reste</Th>
-                <Th style={{ textAlign: "right" }}>Actions</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {savedContracts.map((c) => (
-                <tr key={c.id} style={{ borderBottom: "1px solid #E5E5E5" }}>
-                  <Td>{formatDate(c.savedAt)}</Td>
-                  <Td>
-                    <div>{c.clientName}</div>
-                    <div className="text-xs" style={{ color: "rgba(26,26,26,0.45)" }}>{c.clientPhone}</div>
-                  </Td>
-                  <Td>{c.articles.map((a) => a.name).join(", ")}</Td>
-                  <Td>{formatDA(c.total)}</Td>
-                  <Td style={{ color: c.reste > 0 ? "#74367E" : "rgba(26,26,26,0.45)", fontWeight: c.reste > 0 ? 500 : 400 }}>{formatDA(c.reste)}</Td>
-                  <Td style={{ textAlign: "right" }}>
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => setSelectedContract(c)}
-                        className="btn-ghost"
-                        style={{ padding: "6px 12px", fontSize: 12 }}
-                        title="Voir / Imprimer"
-                      >
-                        <Eye className="w-3.5 h-3.5" /> Voir
-                      </button>
-                      {isAdmin && (
-                        <button
-                          onClick={() => {
-                            if (confirm("Voulez-vous supprimer ce contrat sauvegardé ?")) {
-                              deleteSavedContract(c.id);
-                              toast.success("Contrat supprimé !");
-                            }
-                          }}
-                          className="btn-danger cursor-pointer"
-                          style={{ padding: "6px 12px", fontSize: 12 }}
-                          title="Supprimer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(26,26,26,0.4)" }} />
+        <input
+          className="input-field w-full pl-9"
+          placeholder="Rechercher par client, article..."
+          value={contractSearch}
+          onChange={(e) => setContractSearch(e.target.value)}
+        />
+      </div>
 
-          <div className="md:hidden divide-y" style={{ borderColor: "#E5E5E5" }}>
-            {savedContracts.map((c) => (
-              <div key={c.id} className="p-4 space-y-2">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <div className="font-medium">{c.clientName}</div>
-                    <div className="text-xs" style={{ color: "rgba(26,26,26,0.55)" }}>{c.clientPhone}</div>
+      {(() => {
+        const q = contractSearch.trim().toLowerCase();
+        const visible = q
+          ? savedContracts.filter((c) => {
+              const hay = `${c.clientName} ${c.clientPhone} ${c.articles.map((a) => a.name).join(", ")}`.toLowerCase();
+              return hay.includes(q);
+            })
+          : savedContracts;
+
+        if (visible.length === 0) {
+          return (
+            <EmptyState
+              icon={<FileText className="w-12 h-12" />}
+              title={q ? "Aucun résultat" : "Aucun contrat sauvegardé"}
+            />
+          );
+        }
+
+        return (
+          <div className="card-surface" style={{ padding: 0, overflow: "hidden" }}>
+            <table className="hidden md:table w-full text-sm">
+              <thead>
+                <tr style={{ borderBottom: "2px solid #E5E5E5", background: "#FAFAFA" }}>
+                  <Th>Date Sauvegarde</Th>
+                  <Th>Client</Th>
+                  <Th>Articles</Th>
+                  <Th>Total</Th>
+                  <Th>Reste</Th>
+                  <Th style={{ textAlign: "right" }}>Actions</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((c) => (
+                  <tr key={c.id} style={{ borderBottom: "1px solid #E5E5E5" }}>
+                    <Td>{formatDate(c.savedAt)}</Td>
+                    <Td>
+                      <div>{c.clientName}</div>
+                      <div className="text-xs" style={{ color: "rgba(26,26,26,0.45)" }}>{c.clientPhone}</div>
+                    </Td>
+                    <Td>{c.articles.map((a) => a.name).join(", ")}</Td>
+                    <Td>{formatDA(c.total)}</Td>
+                    <Td style={{ color: c.reste > 0 ? "#74367E" : "rgba(26,26,26,0.45)", fontWeight: c.reste > 0 ? 500 : 400 }}>{formatDA(c.reste)}</Td>
+                    <Td style={{ textAlign: "right" }}>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => setSelectedContract(c)}
+                          className="btn-ghost"
+                          style={{ padding: "6px 12px", fontSize: 12 }}
+                          title="Voir / Imprimer"
+                        >
+                          <Eye className="w-3.5 h-3.5" /> Voir
+                        </button>
+                        {isAdmin && (
+                          <button
+                            onClick={() => {
+                              if (confirm("Voulez-vous supprimer ce contrat sauvegardé ?")) {
+                                deleteSavedContract(c.id);
+                                toast.success("Contrat supprimé !");
+                              }
+                            }}
+                            className="btn-danger cursor-pointer"
+                            style={{ padding: "6px 12px", fontSize: 12 }}
+                            title="Supprimer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div className="md:hidden divide-y" style={{ borderColor: "#E5E5E5" }}>
+              {visible.map((c) => (
+                <div key={c.id} className="p-4 space-y-2">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="font-medium">{c.clientName}</div>
+                      <div className="text-xs" style={{ color: "rgba(26,26,26,0.55)" }}>{c.clientPhone}</div>
+                    </div>
+                    <div className="text-xs" style={{ color: "rgba(26,26,26,0.45)" }}>{formatDate(c.savedAt)}</div>
                   </div>
-                  <div className="text-xs" style={{ color: "rgba(26,26,26,0.45)" }}>{formatDate(c.savedAt)}</div>
-                </div>
-                <div className="text-xs text-neutral-600 truncate">{c.articles.map((a) => a.name).join(", ")}</div>
-                <div className="flex justify-between items-center text-sm pt-1">
-                  <div>Total: {formatDA(c.total)}</div>
-                  {c.reste > 0 && <div style={{ color: "#74367E", fontWeight: 500 }}>Reste: {formatDA(c.reste)}</div>}
-                </div>
-                <div className="flex justify-end gap-2 pt-2">
-                  <button onClick={() => setSelectedContract(c)} className="btn-ghost" style={{ padding: "4px 8px", fontSize: 11 }}>
-                    <Eye className="w-3.5 h-3.5" /> Voir
-                  </button>
-                  {isAdmin && (
-                    <button
-                      onClick={() => {
-                        if (confirm("Supprimer ce contrat ?")) {
-                          deleteSavedContract(c.id);
-                          toast.success("Contrat supprimé !");
-                        }
-                      }}
-                      className="btn-danger cursor-pointer"
-                      style={{ padding: "4px 8px", fontSize: 11 }}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
+                  <div className="text-xs text-neutral-600 truncate">{c.articles.map((a) => a.name).join(", ")}</div>
+                  <div className="flex justify-between items-center text-sm pt-1">
+                    <div>Total: {formatDA(c.total)}</div>
+                    {c.reste > 0 && <div style={{ color: "#74367E", fontWeight: 500 }}>Reste: {formatDA(c.reste)}</div>}
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button onClick={() => setSelectedContract(c)} className="btn-ghost" style={{ padding: "4px 8px", fontSize: 11 }}>
+                      <Eye className="w-3.5 h-3.5" /> Voir
                     </button>
-                  )}
+                    {isAdmin && (
+                      <button
+                        onClick={() => {
+                          if (confirm("Supprimer ce contrat ?")) {
+                            deleteSavedContract(c.id);
+                            toast.success("Contrat supprimé !");
+                          }
+                        }}
+                        className="btn-danger cursor-pointer"
+                        style={{ padding: "4px 8px", fontSize: 11 }}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {selectedContract && (
         <Modal
@@ -191,7 +219,6 @@ function ContractPage() {
               </div>
             </div>
           </div>
-
         </Modal>
       )}
 
