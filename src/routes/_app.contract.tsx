@@ -241,6 +241,21 @@ function PrintSavedContract({ contract }: { contract: SavedContract }) {
           Boutique des Rêves
         </div>
         <div style={{ fontSize: 11, marginTop: 2, color: "rgba(26,26,26,0.6)" }}>Contrat de location</div>
+        <div style={{ marginTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+              <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+              <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+            </svg>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" />
+            </svg>
+            <strong style={{ fontWeight: 600 }}>boutique_des_reves_</strong>
+          </span>
+          <span style={{ color: "rgba(26,26,26,0.3)" }}>·</span>
+          <span>Contact : 0774 22 39 50</span>
+        </div>
       </div>
 
       <div style={{ marginTop: 16 }}>
@@ -281,26 +296,11 @@ function PrintSavedContract({ contract }: { contract: SavedContract }) {
         Signature client : _________________________   Date : ___/___/______
       </div>
 
-      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, fontSize: 10, textAlign: "center", color: "rgba(26,26,26,0.55)", lineHeight: 1.5 }}>
+        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, fontSize: 11, textAlign: "center", color: "#000000", lineHeight: 1.5 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flexWrap: "wrap" }}>
           <span>Les versements effectués ne sont pas remboursables. · Pièce d'identité obligatoire.</span>
-          <span style={{ color: "rgba(26,26,26,0.3)" }}>|</span>
-          <span dir="rtl">المبالغ المدفوعة غير قابلة للاسترداد. · بطاقة الهوية إجبارية.</span>
-        </div>
-        <div style={{ marginTop: 8, borderTop: "1px solid #E5E5E5", paddingTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-              <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-              <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-              <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
-            </svg>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-              <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" />
-            </svg>
-            <strong style={{ fontWeight: 600 }}>boutique_des_reves_</strong>
-          </span>
-          <span style={{ color: "rgba(26,26,26,0.3)" }}>·</span>
-          <span>Contact : 0774 22 39 50</span>
+          <span style={{ color: "#000000" }}>|</span>
+          <span dir="rtl" style={{ color: "#000000" }}>العربون لا يرد و بطاقة الهوية اجبارية.</span>
         </div>
       </div>
     </div>
